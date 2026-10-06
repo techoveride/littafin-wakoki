@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import '../state/purchase_notifier.dart';
@@ -8,12 +8,12 @@ import '../state/purchase_notifier.dart';
 /// against invalid traffic penalties, and switches to live production IDs in release mode.
 class AdHelper {
   // Real AdMob App IDs
-  static const String androidAppId = 'ca-app-pub-8002379469251044~9542582511';
+  static const String androidAppId = 'ca-app-pub-8002379469251044~5969249143';
   static const String iosAppId = 'ca-app-pub-3940256099942544~1458602516'; // Replace with live iOS App ID when registered in AdMob
 
   // Live Production Ad Unit IDs
-  static const String _liveAndroidBannerId = 'ca-app-pub-8002379469251044/9006476025';
-  static const String _liveAndroidAppOpenId = 'ca-app-pub-8002379469251044/1249159520';
+  static const String _liveAndroidBannerId = 'ca-app-pub-8002379469251044/9613989840';
+  static const String _liveAndroidAppOpenId = 'ca-app-pub-8002379469251044/5344317205';
 
   // Google Official Test Ad Unit IDs
   static const String _testAndroidBannerId = 'ca-app-pub-3940256099942544/6300978111';
