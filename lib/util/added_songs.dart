@@ -1,152 +1,272 @@
-import 'package:draggable_scrollbar/draggable_scrollbar.dart';
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:littafin_wakoki/model/db_helper.dart';
-import 'package:littafin_wakoki/model/hymn_composer.dart';
-
-import 'composed_song_details.dart';
+import 'package:littafin_wakoki/model/hymn.dart';
+import 'package:littafin_wakoki/util/compose_song.dart';
+import 'package:littafin_wakoki/util/hymn_details.dart';
+import 'package:littafin_wakoki/util/hymn_listing.dart';
+import '../model/globals.dart' as globals;
+import '../state/hymns_notifier.dart';
+import 'app_dialog.dart';
 
 class AddedSong extends StatefulWidget {
-//  final ValueChanged<ComposeHymns> hymnSelectedCallback;
-  final ComposeHymns hymnSelected = ComposeHymns();
+  const AddedSong({Key? key}) : super(key: key);
 
-//  AddedSong({Key key, @required this.hymnSelectedCallback, this.hymnSelected})
-//      : super(key: key);
   @override
-  _AddedSongState createState() => _AddedSongState();
+  State<AddedSong> createState() => _AddedSongState();
 }
 
 class _AddedSongState extends State<AddedSong> {
-  late List _composedHymn;
-  late int hymnSize;
+  final DatabaseHelper _dbHelper = DatabaseHelper();
+  List<Hymns> _composedSongs = [];
+  bool _isLoading = true;
+  Hymns? _selectedSong;
 
-  static const double _itemExtent = 54.0;
+  static const int tabletBreakpoint = 600;
 
-  final ScrollController _scrollControl = ScrollController();
+  @override
+  void initState() {
+    super.initState();
+    loadComposedSongs();
+  }
 
-  late DatabaseHelper dbHelper;
+  Future<void> loadComposedSongs() async {
+    setState(() => _isLoading = true);
+    final songs = await _dbHelper.getHymnsList(customOnly: true);
+    if (mounted) {
+      setState(() {
+        _composedSongs = songs;
+        _isLoading = false;
+        if (_selectedSong == null && songs.isNotEmpty) {
+          _selectedSong = songs.first;
+        } else if (songs.isEmpty) {
+          _selectedSong = null;
+        }
+      });
+    }
+  }
+
+  void _confirmDelete(Hymns hymn) async {
+    final confirmed = await showAdaptiveConfirmationDialog(
+      context: context,
+      title: "Delete Composed Song?",
+      content: "Are you sure you want to delete '${hymn.title}'? This action cannot be undone.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      isDestructive: true,
+    );
+    if (confirmed == true) {
+      await _dbHelper.deleteCustomHymn(hymn.id);
+      hymnGKey.currentState?.refreshList();
+      HymnsNotifier.instance.notifyHymnsChanged();
+      await loadComposedSongs();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("'${hymn.title}' deleted")),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final shortestSide = MediaQuery.of(context).size.shortestSide;
+    final isTablet = shortestSide >= tabletBreakpoint;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Composed Songs"),
+        title: const Text("My Composed Songs"),
         centerTitle: true,
-        actions: const <Widget>[
+        actions: const [
           Padding(
             padding: EdgeInsets.all(8.0),
             child: Icon(Icons.queue_music),
           )
         ],
       ),
-      body: Scrollbar(
-        child: FutureBuilder(
-          future: getHymns(),
-          builder: (BuildContext context, AsyncSnapshot snapshot) {
-            if (snapshot.hasData) {
-              return hymnSize > 0
-                  ? DraggableScrollbar.arrows(
-                      alwaysVisibleScrollThumb: true,
-                      backgroundColor: Colors.grey[850]!,
-                      padding: const EdgeInsets.only(right: 4.0),
-                      labelTextBuilder: (double offset) => Text(
-                          "${(offset ~/ _itemExtent) + 1}",
-                          style: const TextStyle(color: Colors.white)),
-                      controller: _scrollControl,
-                      child: ListView.builder(
-                          controller: _scrollControl,
-                          itemCount: hymnSize,
-                          itemBuilder: (_, index) {
-                            return Card(
-                              elevation: 4.5,
-                              margin: const EdgeInsets.only(
-                                  bottom: 3.0, right: 4.0, left: 4.0),
-                              child: ListTile(
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.delete_sweep),
-                                  onPressed: () => deleteHymn(
-                                      ComposeHymns.fromJson(
-                                              _composedHymn[index])
-                                          .id!),
-                                ),
-                                leading: Text(
-                                  "${ComposeHymns.fromJson(_composedHymn[index]).id}",
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w500,
-                                      fontSize: 18),
-                                ),
-                                title: Text(
-                                  "${ComposeHymns.fromJson(_composedHymn[index]).title}",
-                                  style: Theme.of(context).textTheme.headline6,
-                                ),
-                                selected: widget.hymnSelected ==
-                                    ComposeHymns.fromJson(_composedHymn[index]),
-                                onTap: () => Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (_) {
-                                    return ComposedSongDetails(
-                                      hymns: ComposeHymns.fromJson(
-                                          _composedHymn[index]),
-                                    );
-                                  }),
-                                ),
-                              ),
-                            );
-                          }),
-                    )
-                  : ListView(
-                      children: const <Widget>[
-                        Card(
-                          elevation: 4.5,
-                          margin: EdgeInsets.only(
-                              bottom: 3.0, right: 4.0, left: 4.0),
-                          child: ListTile(
-                            title: Text(
-                              "Composed Songs Empty",
-                            ),
-                            subtitle:
-                                Text("Add a Composed Song to appear here"),
-                          ),
-                        )
-                      ],
-                    );
-            } else {
-              return const Center(
-                child: CircularProgressIndicator(
-                  strokeWidth: 6.0,
-                  value: .8,
-                ),
-              );
-            }
-          },
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator.adaptive())
+          : _composedSongs.isEmpty
+              ? _buildEmptyView()
+              : isTablet
+                  ? _buildTabletView()
+                  : _buildMobileList(),
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'composeFab',
+        onPressed: () async {
+          final res = await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ComposeSong()),
+          );
+          if (res == true) {
+            await loadComposedSongs();
+          }
+        },
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildEmptyView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.edit_note, size: 80, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            const Text(
+              "No Composed Songs Yet",
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              "Write your own hymns and spiritual songs!\nTap the + button below to compose a new song.",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: Colors.grey, height: 1.4),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  @override
-  void initState() {
-    getHymns();
-    super.initState();
+  Widget _buildMobileList() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
+      itemCount: _composedSongs.length,
+      itemBuilder: (context, index) {
+        final hymn = _composedSongs[index];
+        return Card(
+          elevation: 3.0,
+          margin: const EdgeInsets.symmetric(horizontal: 6.0, vertical: 3.0),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              child: Text(
+                "${index + 1}",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onPrimaryContainer,
+                ),
+              ),
+            ),
+            title: Text(
+              hymn.title,
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: hymn.author != null && hymn.author!.isNotEmpty
+                ? Text("By: ${hymn.author}")
+                : const Text("Custom Song"),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.edit,
+                      color: Colors.blueAccent, size: 20),
+                  tooltip: "Edit",
+                  onPressed: () async {
+                    final res = await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ComposeSong(existingHymn: hymn)),
+                    );
+                    if (res == true) loadComposedSongs();
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline,
+                      color: Colors.redAccent, size: 20),
+                  tooltip: "Delete",
+                  onPressed: () => _confirmDelete(hymn),
+                ),
+              ],
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => HymnDetails(
+                    isInTabletLayout: false,
+                    hymns: hymn,
+                    onFavoriteChanged: loadComposedSongs,
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
   }
 
-  @override
-  void dispose() {
-//    DatabaseHelper.internal().closeDb();
-
-    super.dispose();
-  }
-
-  Future<List> getHymns() async {
-    dbHelper = DatabaseHelper();
-    dbHelper.initDB();
-    var myHymn = await dbHelper.getAllHymns();
-    setState(() {
-      _composedHymn = myHymn;
-      hymnSize = _composedHymn.length;
-    });
-    return _composedHymn;
-  }
-
-  deleteHymn(int index) {
-    dbHelper.deleteHymns(index);
+  Widget _buildTabletView() {
+    return Row(
+      children: [
+        Flexible(
+          flex: 2,
+          child: Material(
+            elevation: 4.0,
+            child: ListView.builder(
+              itemCount: _composedSongs.length,
+              itemBuilder: (context, index) {
+                final hymn = _composedSongs[index];
+                final isSelected = _selectedSong?.id == hymn.id;
+                return Card(
+                  elevation: isSelected ? 4.0 : 1.0,
+                  color: isSelected
+                      ? Theme.of(context)
+                          .colorScheme
+                          .secondary
+                          .withValues(alpha: 0.12)
+                      : null,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8.0),
+                    side: isSelected
+                        ? BorderSide(
+                            color: Theme.of(context).colorScheme.secondary,
+                            width: 2)
+                        : BorderSide.none,
+                  ),
+                  margin: const EdgeInsets.symmetric(
+                      horizontal: 6.0, vertical: 3.0),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor:
+                          Theme.of(context).colorScheme.primaryContainer,
+                      child: Text("${index + 1}"),
+                    ),
+                    title: Text(hymn.title,
+                        maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: hymn.author != null
+                        ? Text(hymn.author!, maxLines: 1)
+                        : null,
+                    selected: isSelected,
+                    onTap: () {
+                      if (_selectedSong?.id != hymn.id) {
+                        globals.stopAudio();
+                      }
+                      setState(() => _selectedSong = hymn);
+                    },
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        const VerticalDivider(width: 1, thickness: 1),
+        Flexible(
+          flex: 4,
+          child: _selectedSong != null
+              ? HymnDetails(
+                  isInTabletLayout: true,
+                  hymns: _selectedSong!,
+                  onFavoriteChanged: loadComposedSongs,
+                )
+              : const Center(child: Text("Select a composed song to view")),
+        ),
+      ],
+    );
   }
 }
+

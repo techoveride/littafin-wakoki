@@ -1,8 +1,7 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_remote_config/firebase_remote_config.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,17 +10,25 @@ import 'package:littafin_wakoki/model/hymn.dart';
 import 'package:littafin_wakoki/util/fav_hymn_listing.dart';
 import 'package:littafin_wakoki/util/hymn_listing.dart';
 import 'package:littafin_wakoki/util/my_drawer.dart';
-import 'package:package_info/package_info.dart';
+import 'package:in_app_update/in_app_update.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../main.dart' as main;
-import 'fav_hymn_details.dart';
+import '../ads/anchored_adaptive_ad.dart';
+import '../service/hymn_sync_service.dart';
+import 'app_dialog.dart';
 import 'hymn_details.dart';
 
+// You can also test with your own ad unit IDs by registering your device as a
+// test device. Check the logs for your device's ID value.
+const String testDevice = '0D7F74813DAA8CF871287A05BE47FDE7';
+const int maxFailedLoadAttempts = 3;
+// const String testDevice = 'D3E0FD831CF53C8B3EA7798C1AD0128D';
 final myTabbedPageKey = GlobalKey<_MasterDetailsScreenState>();
 
 class MasterDetailsScreen extends StatefulWidget {
+  const MasterDetailsScreen({super.key});
+
   @override
   _MasterDetailsScreenState createState() => _MasterDetailsScreenState();
 }
@@ -31,30 +38,123 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
   int currentTabIndex = 0;
   bool tabFlag = true;
   late TabController tabController;
+  //Google Ads setup
+  // static const AdRequest request = AdRequest(
+  //   nonPersonalizedAds: true,
+  // );
+  // late Orientation _currentOrientation;
 
-  double adPadding = 0.0;
+  //end Banner Ads
+  // InterstitialAd? _interstitialAd;
+  // int _numInterstitialLoadAttempts = 0;
+
   bool isTabletLayout = false;
 
-  // StartApp Ads Setup
-  // var startAppSdk = StartAppSdk();
-  // StartAppBannerAd? bannerAd;
-  // StartAppInterstitialAd? interstitialAd;
+/*  void _createInterstitialAd() {
+    InterstitialAd.load(
+        adUnitId: Platform.isAndroid
+            ? 'ca-app-pub-2165165254805026/2118092023'
+            // ? 'ca-app-pub-3940256099942544/1033173712'
+            : 'ca-app-pub-3940256099942544/4411468910',
+        request: request,
+        adLoadCallback: InterstitialAdLoadCallback(
+          onAdLoaded: (InterstitialAd ad) {
+            if (kDebugMode) {
+              print('$ad loaded');
+            }
+            _interstitialAd = ad;
+            _numInterstitialLoadAttempts = 0;
+            _interstitialAd!.setImmersiveMode(true);
+          },
+          onAdFailedToLoad: (LoadAdError error) {
+            debugPrint('InterstitialAd failed to load: $error.');
+            _numInterstitialLoadAttempts += 1;
+            _interstitialAd = null;
+            if (_numInterstitialLoadAttempts < maxFailedLoadAttempts) {
+              _createInterstitialAd();
+            }
+          },
+        ));
+  }
+
+  void _showInterstitialAd() {
+    if (_interstitialAd == null) {
+      if (kDebugMode) {
+        print('Warning: attempt to show interstitial before loaded.');
+      }
+      return;
+    }
+    _interstitialAd!.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (InterstitialAd ad) =>
+          debugPrint('ad onAdShowedFullScreenContent.'),
+      onAdDismissedFullScreenContent: (InterstitialAd ad) {
+        debugPrint('$ad onAdDismissedFullScreenContent.');
+        ad.dispose();
+        _createInterstitialAd();
+      },
+      onAdFailedToShowFullScreenContent: (InterstitialAd ad, AdError error) {
+        debugPrint('$ad onAdFailedToShowFullScreenContent: $error');
+        ad.dispose();
+        _createInterstitialAd();
+      },
+    );
+    _interstitialAd!.show();
+    _interstitialAd = null;
+  }*/
+  AppUpdateInfo? _updateInfo;
+
+  bool _flexibleUpdateAvailable = false;
+
+  // Platform messages are asynchronous, so we initialize in an async method.
+  Future<void> checkForUpdate() async {
+    InAppUpdate.checkForUpdate().then((info) {
+      setState(() {
+        _updateInfo = info;
+      });
+    }).catchError((e) {
+      showSnack(e.toString());
+    });
+  }
+
+  void showSnack(String text) {
+    if (_mainDetailKey.currentContext != null) {
+      ScaffoldMessenger.of(_mainDetailKey.currentContext!)
+          .showSnackBar(SnackBar(content: Text(text)));
+    }
+  }
 
   @override
   void initState() {
-    super.initState();
     activeSearch = false;
     tabController =
         TabController(vsync: this, length: _kTabs.length, initialIndex: 0);
+    super.initState();
 
-    // TODO make sure to comment out this line before release
-    // startAppSdk.setTestAdsEnabled(true);
-    // loadBanner();
+    checkForUpdate();
+    Future.delayed(const Duration(seconds: 1)).then((value) {
+      if (_updateInfo?.updateAvailability ==
+          UpdateAvailability.updateAvailable) {
+        InAppUpdate.startFlexibleUpdate().then((_) {
+          setState(() {
+            _flexibleUpdateAvailable = true;
+          });
+        }).catchError((e) {
+          showSnack(e.toString());
+        });
+        if (_flexibleUpdateAvailable) {
+          InAppUpdate.completeFlexibleUpdate().then((_) {
+            showSnack("Success!");
+          }).catchError((e) {
+            showSnack(e.toString());
+          });
+        }
+      }
+    });
+
+    //ads Setup
+
+    //load Interstitial Ad
     // loadInterstitial();
-    // Future.delayed(const Duration(seconds: 5), () {
-    //   buildInterstitial();
-    // });
-
     tabController.addListener(() async {
       if (tabController.indexIsChanging) {
         await globals.player.stop();
@@ -66,21 +166,18 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
   @override
   void dispose() {
     tabController.dispose();
-    main.isLightTheme.close();
-    // interstitialAd = null;
+    // _interstitialAd?.dispose();
     super.dispose();
   }
 
-  //End of Ads setup
   static const int tabletBreakpoint = 600;
   Hymns _selectedHymn = Hymns(
-      author: "J. L. Maxwell",
-      favorite: 0,
       id: 1,
       lyric:
-          "1.\n Ubangiji Allah, ga mu nan gabanka.\nTun da farin hasken safe, mu ke nemanka.\nMuna yabon sunanka, ya Mai Iko Duka,\nMuna sujada, ya Mai Tsarki.\n\n2.\n Ubangiji Uba, kai ne farkon kome,\nKai ka ba da Ɗanka Yesu domin cetonmu.\nMu da muka tayar, kai ka ji tausayinmu.\nMuna sujada, ya Mai Tsarki.\n\n3.\n Ubangiji Yesu, kai ne Almasihu,\nKai ka fanshi bayin Shaiɗan daga bautarsa.\nKai ka ba da jininka domin mu mutane.\nMuna sujada, ya Mai Tsarki.\n\n4.\n Ubangiji Ruhu, sunanka Mai Tsarki,\nKai ne kana koya mana hanyar cetonmu.\nKai ne jagabanmu, kullum sai mu bi ka.\nMuna sujada, ya Mai Tsarki.\n\n5.\n Allah Ubangijinmu, ɗaya cikin uku,\nHarshe ba ya iya faɗin girman sunanka.\nUba, Ɗa, da Ruhu, uku cikin ɗaya,\nMuna sujada, ya Mai Tsarki.\n\n\n",
-      title: "001-Ubangiji Allah, Ga Mu Nan Gabanka",
-      tune: "Holy, Holy, Holy / Nicea");
+          "Praise, my soul, the King of heaven ;\nTo His feet thy tribute bring ;\nRansomed, healed, restored, forgiven,\nWho like thee His praise shall sing ?\nPraise Him ! praise Him !\nPraise the everlasting King !\n \n2\n Praise Him for His grace and favour\nTo our fathers in distress ;\nPraise Him, still the same as ever,\nSlow to chide, and swift to bless :\nPraise Him ! praise Him !\nGlorious in His faithfulness !\n \n3\n Father- like He tends and spares us,\nWell our feeble frame He knows ;\nIn His hands He gently bears us,\nRescues us from all our foes :\nPraise Him ! praise Him !\nWidely as His mercy flows.\n \n4\n Angels, help us to adore Him,\nYe behold Him face to face !\nSun and moon, bow down before\nHim !Dwellers all in time and space,\nPraise Him ! praise Him !\nPraise with us the God of grace !\n",
+      favorite: 0,
+      tune: "",
+      title: "Praise, my soul, the King of heaven");
   Hymns _favSelectedHymn = Hymns(
       id: -1,
       lyric: "Please select a hymn from the list",
@@ -105,77 +202,34 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
 
   final GlobalKey<ScaffoldState> _mainDetailKey = GlobalKey();
 
-  get _onBackPressed => showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-            title: const Center(child: Text("Are You Sure ?")),
-            content: SizedBox(
-              height: 120,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: <Widget>[
-                  const Text("Do you want to exit"),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      ElevatedButton(
-                        style: ButtonStyle(
-                            shape: MaterialStateProperty.all(
-                                RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8.0),
-                            )),
-                            overlayColor: MaterialStateProperty.all<Color>(
-                                Theme.of(context).splashColor)),
-                        onPressed: () {
-                          Navigator.of(context).pop(false);
-                        },
-                        child: const Text(
-                          "No",
-                          style: TextStyle(color: Colors.black),
-                        ),
-                      ),
-                      ElevatedButton(
-                        style: ButtonStyle(
-                            shape: MaterialStateProperty.all(
-                                RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8.0),
-                            )),
-                            overlayColor: MaterialStateProperty.all<Color>(
-                                Theme.of(context).splashColor)),
-                        onPressed: () {
-                          SystemChannels.platform
-                              .invokeMethod('SystemNavigator.pop');
-                        },
-                        child: const Text(
-                          "Yes",
-                          style: TextStyle(color: Colors.black),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            elevation: 4.0,
-            contentPadding: const EdgeInsets.all(10.0),
-            shape: BeveledRectangleBorder(
-                side: BorderSide(
-                    color: Theme.of(context).colorScheme.primary, width: 1.0),
-                borderRadius: BorderRadius.circular(8.0)),
-          ));
+/*
+  Future<void> themeMode() async {
+    SharedPreferences preferences = await SharedPreferences.getInstance();
+    bool status = preferences.getBool("nightMode");
+
+    setState(() {
+      if (status != null) globals.nightMode = status;
+    });
+  }
+*/
+
 
   Widget _buildMobileFavLayout() {
     return FavHymnListing(
-        key: favHymnGKey,
-        hymnSelectedCallback: (hymnSelected) async {
-          await Navigator.push(context, MaterialPageRoute(builder: (context) {
-            return FavHymnDetails(
-              isInTabletLayout: false,
-              hymns: hymnSelected,
-              adPadding: adPadding,
-            );
-          }));
-        });
+      key: favHymnGKey,
+      hymnSelectedCallback: (hymnSelected) async {
+        await Navigator.push(context, MaterialPageRoute(builder: (context) {
+          return HymnDetails(
+            isInTabletLayout: false,
+            hymns: hymnSelected,
+            onFavoriteChanged: () {
+              favHymnGKey.currentState?.refreshList();
+              hymnGKey.currentState?.refreshList();
+            },
+          );
+        }));
+      },
+    );
   }
 
   Widget _buildTabFavLayout() {
@@ -184,10 +238,13 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
         Flexible(
           flex: 2,
           child: Material(
-            elevation: 16.0,
+            elevation: 4.0,
             child: FavHymnListing(
               key: favHymnGKey,
               hymnSelectedCallback: (hymn) {
+                if (_favSelectedHymn.id != hymn.id) {
+                  globals.stopAudio();
+                }
                 setState(() {
                   _favSelectedHymn = hymn;
                 });
@@ -196,12 +253,16 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
             ),
           ),
         ),
+        const VerticalDivider(width: 1, thickness: 1),
         Flexible(
           flex: 4,
-          child: FavHymnDetails(
+          child: HymnDetails(
             isInTabletLayout: true,
             hymns: _favSelectedHymn,
-            adPadding: adPadding,
+            onFavoriteChanged: () {
+              favHymnGKey.currentState?.refreshList();
+              hymnGKey.currentState?.refreshList();
+            },
           ),
         ),
       ],
@@ -217,7 +278,10 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
           return HymnDetails(
             isInTabletLayout: false,
             hymns: hymnSelected,
-            adPadding: adPadding,
+            onFavoriteChanged: () {
+              hymnGKey.currentState?.refreshList();
+              favHymnGKey.currentState?.refreshList();
+            },
           );
         }));
       },
@@ -230,10 +294,13 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
         Flexible(
           flex: 2,
           child: Material(
-            elevation: 16.0,
+            elevation: 4.0,
             child: HymnListing(
               key: hymnGKey,
               hymnSelectedCallback: (hymn) {
+                if (_selectedHymn.id != hymn.id) {
+                  globals.stopAudio();
+                }
                 setState(() {
                   _selectedHymn = hymn;
                 });
@@ -242,12 +309,16 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
             ),
           ),
         ),
+        const VerticalDivider(width: 1, thickness: 1),
         Flexible(
           flex: 4,
           child: HymnDetails(
             isInTabletLayout: true,
             hymns: _selectedHymn,
-            adPadding: adPadding,
+            onFavoriteChanged: () {
+              hymnGKey.currentState?.refreshList();
+              favHymnGKey.currentState?.refreshList();
+            },
           ),
         ),
       ],
@@ -273,44 +344,51 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
       favContent = _buildTabFavLayout();
       isTabletLayout = true;
     }
-    final _kTabPages = <Widget>[
+    final kTabPages = <Widget>[
       content,
       favContent,
     ];
 
     return DefaultTabController(
       length: 2,
-      child: WillPopScope(
-        onWillPop: () async {
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, result) async {
+          if (didPop) return;
           if (activeSearch) {
             _searchController.clear();
             if (hymnGKey.currentState != null) {
-              hymnGKey.currentState?.onSearchExit(" ");
-            } else if (hymnGKey.currentState == null) {
-              favHymnGKey.currentState?.onSearchExit(" ");
+              hymnGKey.currentState!.onSearchExit(" ");
+            } else if (favHymnGKey.currentState != null) {
+              favHymnGKey.currentState!.onSearchExit(" ");
             }
             setState(() {
               activeSearch = false;
             });
-            return false;
-          } else {
-            return _onBackPressed;
+            return;
+          }
+          if (!Platform.isIOS) {
+            final shouldExit = await showExitConfirmationDialog(context);
+            if (shouldExit) {
+              await SystemNavigator.pop();
+            }
           }
         },
         child: Scaffold(
           key: _mainDetailKey,
           appBar: _appBar(),
-          body: TabBarView(controller: tabController, children: _kTabPages),
+          body: Stack(
+              alignment: AlignmentDirectional.bottomCenter,
+              children: <Widget>[
+                TabBarView(controller: tabController, children: kTabPages),
+                // const AnchoredAdaptiveAd(),
+              ]),
           drawer: MyDrawer(
-              destroyBanner: destroyBanner,
-              buildBanner: buildBanner,
-              isTabletLayout: isTabletLayout),
-          bottomNavigationBar: SizedBox(
-            height: adPadding,
-            // child: bannerAd != null ? StartAppBanner(bannerAd!) : Container(),
-            child: Container(),
-            // width: 320.0,
+            isTabletLayout: isTabletLayout,
+            // destroyBanner: destroyBanner,
+            // buildBanner: buildBanner,
           ),
+          bottomNavigationBar: const AnchoredAdaptiveAd(),
         ),
       ),
     );
@@ -335,9 +413,9 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
               onPressed: () {
                 _searchController.clear();
                 if (hymnGKey.currentState != null) {
-                  hymnGKey.currentState?.onSearchExit(" ");
+                  hymnGKey.currentState!.onSearchExit(" ");
                 } else if (hymnGKey.currentState == null) {
-                  favHymnGKey.currentState?.onSearchExit(" ");
+                  favHymnGKey.currentState!.onSearchExit(" ");
                 }
 
                 setState(() {
@@ -348,28 +426,15 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
       );
     } else {
       return AppBar(
-        title: const Text("Littafin WaKoki"),
-        leading: IconButton(
-            icon: const Icon(Icons.menu),
-            onPressed: () async {
-              _mainDetailKey.currentState?.openDrawer();
-
-              if (_mainDetailKey.currentState!.isDrawerOpen) {
-              } else if (!_mainDetailKey.currentState!.isDrawerOpen) {
-                // loadBanner();
-                if (kDebugMode) {
-                  print("Banner Restored");
-                }
-              }
-            }),
+        title: const Text("Sacred Songs & Solos"),
         bottom: TabBar(
           controller: tabController,
           tabs: [
             isTabletLayout
-                ? Tab(
+                ? const Tab(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: const <Widget>[
+                      children: <Widget>[
                         Padding(
                           padding: EdgeInsets.all(4.0),
                           child: Icon(Icons.all_inclusive),
@@ -383,10 +448,10 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
                     icon: Icon(Icons.all_inclusive),
                   ),
             isTabletLayout
-                ? Tab(
+                ? const Tab(
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: const <Widget>[
+                      children: <Widget>[
                         Padding(
                           padding: EdgeInsets.all(4.0),
                           child: Icon(Icons.favorite),
@@ -398,7 +463,47 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
                 : const Tab(
                     text: "Favorite",
                     icon: Icon(Icons.favorite),
-                  ),
+                  )
+
+//            Tab(
+////              text: ".",
+//                child: isTabletLayout
+//                    ? Row(
+//                        mainAxisAlignment: MainAxisAlignment.center,
+//                        children: <Widget>[
+//                          Padding(
+//                            padding: const EdgeInsets.only(right: 8.0),
+//                            child: const Icon(Icons.all_inclusive),
+//                          ),
+//                          const Text("All")
+//                        ],
+//                      )
+//                    : Column(
+//                        mainAxisAlignment: MainAxisAlignment.center,
+//                        children: <Widget>[
+//                          const Text("All"),
+//                          const Icon(Icons.all_inclusive),
+//                        ],
+//                      )),
+//            Tab(
+//                child: isTabletLayout
+//                    ? Row(
+//                        mainAxisAlignment: MainAxisAlignment.center,
+//                        children: <Widget>[
+//                          Padding(
+//                            padding: const EdgeInsets.only(right: 8.0),
+//                            child: const Icon(Icons.favorite),
+//                          ),
+//                          const Text("Favorite")
+//                        ],
+//                      )
+//                    : Column(
+//                        mainAxisAlignment: MainAxisAlignment.center,
+//                        children: <Widget>[
+//                          const Text("Favorite"),
+//                          const Icon(Icons.favorite),
+//                        ],
+//                      )),
           ],
         ),
         centerTitle: true,
@@ -417,155 +522,123 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
 
   void onItemChanged(String value) {
     hymnGKey.currentState != null
-        ? hymnGKey.currentState?.onSearchedItem(value)
-        : favHymnGKey.currentState?.onSearchedItem(value);
+        ? hymnGKey.currentState!.onSearchedItem(value)
+        : favHymnGKey.currentState!.onSearchedItem(value);
   }
 
   sortList() {
-    showDialog(
-        context: context,
-        builder: (_) => AlertDialog(
-              title: const Text("Sort By..."),
-              content: SizedBox(
-                height: 80,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: <Widget>[
-                    Expanded(
-                      child: ListTile(
-                        leading: const Icon(Icons.sort_by_alpha),
-                        title: const Text(
-                          "Title",
-                          style: TextStyle(fontSize: 12.0),
-                        ),
-                        onTap: () {
-                          hymnGKey.currentState != null
-                              ? hymnGKey.currentState?.sortByTitle()
-                              : favHymnGKey.currentState?.sortByTitle();
-                          Navigator.of(context).pop(true);
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: ListTile(
-                        leading: const Icon(Icons.format_list_numbered),
-                        title: const Text(
-                          "Number",
-                          style: TextStyle(fontSize: 12.0),
-                        ),
-                        onTap: () {
-                          hymnGKey.currentState != null
-                              ? hymnGKey.currentState?.sortByNumber()
-                              : favHymnGKey.currentState?.sortByNumber();
-                          Navigator.of(context).pop(true);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              elevation: 4.0,
-              contentPadding: const EdgeInsets.all(10.0),
-              shape: RoundedRectangleBorder(
-                  side: const BorderSide(color: Colors.redAccent, width: 1.5),
-                  borderRadius: BorderRadius.circular(26.0)),
-            ));
+    showAppDialog(
+      context: context,
+      builder: (dialogCtx) => AppDialog(
+        icon: Icons.sort,
+        title: "Sort Hymns By",
+        subtitle: "Choose catalog ordering",
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppOptionCard<String>(
+              value: 'number',
+              groupValue: '',
+              title: "Hymn Number (#)",
+              subtitle: "Order hymns numerically (1, 2, 3...)",
+              leading: const Icon(Icons.format_list_numbered),
+              onSelected: (_) {
+                hymnGKey.currentState != null
+                    ? hymnGKey.currentState!.sortByNumber()
+                    : favHymnGKey.currentState!.sortByNumber();
+                Navigator.of(dialogCtx).pop(true);
+              },
+            ),
+            const SizedBox(height: 6),
+            AppOptionCard<String>(
+              value: 'title',
+              groupValue: '',
+              title: "Hymn Title (A-Z)",
+              subtitle: "Order hymns alphabetically",
+              leading: const Icon(Icons.sort_by_alpha),
+              onSelected: (_) {
+                hymnGKey.currentState != null
+                    ? hymnGKey.currentState!.sortByTitle()
+                    : favHymnGKey.currentState!.sortByTitle();
+                Navigator.of(dialogCtx).pop(true);
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogCtx).pop(),
+            child: const Text("Cancel"),
+          ),
+        ],
+      ),
+    );
   }
 
-  /*void loadBanner() async {
-    startAppSdk
-        .loadBannerAd(StartAppBannerType.BANNER,
-            prefs: const StartAppAdPreferences(adTag: "homepage"))
-        .then((bannerAd) {
-      setState(() {
-        bannerAd = bannerAd;
-        adPadding = bannerAd.height!.toDouble();
-      });
-    }).onError<StartAppException>((ex, stackTrace) {
-      debugPrint("Error loading Banner ad: ${ex.message}");
-    }).onError((error, stackTrace) {
-      debugPrint("Error loading Banner ad: $error");
-    });
-  }
+  // void loadBanner() {
+  //   _bannerAd = createBannerAd();
+  //   _bannerAd?.load();
+  // }
 
-  void loadInterstitial() {
-    startAppSdk
-        .loadInterstitialAd(
-            prefs: const StartAppAdPreferences(
-                videoMuted: true, categoriesExclude: ["porn", "adult"]))
-        .then((interstitialAd) {
-      setState(() {
-        this.interstitialAd = interstitialAd;
-      });
+  // void loadInterstitial() {
+  //   _createInterstitialAd();
+  //   //show interstitial timer
+  //   Timer(const Duration(minutes: 6), () {
+  //     _showInterstitialAd();
+  //   });
+  // }
 
-    }).onError<StartAppException>((ex, stackTrace) {
-      debugPrint("Error loading Interstitial ad: ${ex.message}");
-    }).onError((error, stackTrace) {
-      debugPrint("Error loading Interstitial ad: $error");
-    });
-  }*/
+  // destroyBanner() async {
+  //   await _bannerAd?.dispose();
+  //   _bannerAd = null;
+  //   setState(() => adPadding = 0.0);
+  // }
 
-  destroyBanner() async {
-    // bannerAd = null;
-  }
-
-  buildBanner() {
-    // loadBanner();
-  }
-
-/*
-  void buildInterstitial() {
-    if (interstitialAd != null) {
-      interstitialAd!.show().then((shown) {
-        if (shown) {
-          setState(() {
-            // NOTE interstitial ad can be shown only once
-            interstitialAd = null;
-
-            // NOTE load again
-            // loadInterstitial();
-          });
-        }
-
-        return null;
-      }).onError((error, stackTrace) {
-        debugPrint("Error showing Interstitial ad: $error");
-      });
-    }
-  }*/
+  // buildBanner() {
+  //   loadBanner();
+  // }
 
   void versionCheck() async {
-    //Get Current installed version of app
-    final PackageInfo info = await PackageInfo.fromPlatform();
-    double currentVersion =
-        double.parse(info.version.trim().replaceAll(".", ""));
-    globals.app_version = info.version.trim().replaceAll(".", "");
-    //Get Latest version info from firebase config
+    // Current installed version of app (matches pubspec.yaml version)
+    const String currentVersionStr = "1.2.1";
+    globals.app_version = currentVersionStr.replaceAll(".", "");
+    double currentVersion = double.tryParse(globals.app_version) ?? 121.0;
+    // Get Latest version info from firebase config
     final FirebaseRemoteConfig remoteConfig = FirebaseRemoteConfig.instance;
     try {
-      // Using default duration to force fetching from remote server.
-      // await remoteConfig.fetch(expiration: const Duration(seconds: 0));
+      await remoteConfig.setConfigSettings(RemoteConfigSettings(
+        fetchTimeout: const Duration(seconds: 10),
+        minimumFetchInterval: Duration.zero,
+      ));
       await remoteConfig.fetchAndActivate();
       String remoteVersion = remoteConfig.getString("app_version");
-      String storeUrl = remoteConfig.getString("app_store_url");
-      String playUrl = remoteConfig.getString("play_store_url");
       String shareApp = remoteConfig.getString("share_app");
       String moreApps = remoteConfig.getString("more_apps");
       String proStoreUrl = remoteConfig.getString("pro_store_url");
       String proPlayUrl = remoteConfig.getString("pro_play_url");
-      globals.APP_STORE_URL = storeUrl;
-      globals.PLAY_STORE_URL = playUrl;
-      globals.PREMIUM_APP_STORE_URL = proStoreUrl;
-      globals.PREMIUM_PLAY_STORE_URL = proPlayUrl;
-      globals.share_app = shareApp;
-      globals.more_apps = moreApps;
-
+      if (proStoreUrl.isNotEmpty) globals.PREMIUM_APP_STORE_URL = proStoreUrl;
+      if (proPlayUrl.isNotEmpty) globals.PREMIUM_PLAY_STORE_URL = proPlayUrl;
+      if (shareApp.isNotEmpty) globals.share_app = shareApp;
+      if (moreApps.isNotEmpty) globals.more_apps = moreApps;
       globals.app_update = remoteVersion;
-      double newVersion =
-          double.parse(remoteVersion.trim().replaceAll(".", ""));
-      if (newVersion > currentVersion) {
-        _showVersionDialog();
+
+      if (remoteVersion.isNotEmpty) {
+        double? newVersion =
+            double.tryParse(remoteVersion.trim().replaceAll(".", ""));
+        if (newVersion != null && newVersion > currentVersion) {
+          _showVersionDialog();
+        }
       }
+
+      // Automatically sync latest hymn catalog if a newer version is present
+      HymnSyncService().syncRemoteHymns().then((result) {
+        if (result.updatedCount > 0 && mounted) {
+          hymnGKey.currentState?.refreshList();
+          showSnack("Updated ${result.updatedCount} hymns from the cloud!");
+        }
+      }).catchError((e) {
+        debugPrint("Silent catalog sync check notice: $e");
+      });
     } catch (exception) {
       if (kDebugMode) {
         print('Unable to fetch remote config. Cached or default values will be '
@@ -575,45 +648,28 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
   }
 
   _showVersionDialog() async {
-    await showDialog<String>(
+    await showAppDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
-        String title = "New Update Available";
-        String message =
-            "There is a newer version of app available please update it now.";
-        String btnLabel = "Update Now";
-        String btnLabelCancel = "Later";
-        return Platform.isIOS
-            ? CupertinoAlertDialog(
-                title: Text(title),
-                content: Text(message),
-                actions: <Widget>[
-                  TextButton(
-                    child: Text(btnLabel),
-                    onPressed: () => _launchURL(globals.APP_STORE_URL),
-                  ),
-                  TextButton(
-                    child: Text(btnLabelCancel),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              )
-            : AlertDialog(
-                title: Text(title),
-                content: Text(message),
-                actions: <Widget>[
-                  TextButton(
-                    child: Text(btnLabel),
-                    onPressed: () => _launchURL(globals.PLAY_STORE_URL),
-                  ),
-                  TextButton(
-                    child: Text(btnLabelCancel),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              );
-      },
+      builder: (dialogCtx) => AppDialog(
+        icon: Icons.system_update,
+        title: "New Update Available",
+        subtitle: "A newer version of the app is available. Please update now for the latest songs and improvements.",
+        content: const SizedBox(height: 8),
+        actions: [
+          TextButton(
+            child: const Text("Later"),
+            onPressed: () => Navigator.pop(dialogCtx),
+          ),
+          FilledButton(
+            child: const Text("Update Now"),
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              _launchURL(Platform.isIOS ? globals.PREMIUM_APP_STORE_URL : globals.PREMIUM_PLAY_STORE_URL);
+            },
+          ),
+        ],
+      ),
     );
   }
 
@@ -632,3 +688,4 @@ void setTheme(bool mode) async {
   preferences.setBool("nightMode", mode);
   globals.nightMode = mode;
 }
+

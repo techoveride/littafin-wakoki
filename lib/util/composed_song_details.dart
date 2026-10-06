@@ -1,12 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:littafin_wakoki/model/globals.dart' as globals;
 import 'package:littafin_wakoki/model/hymn_composer.dart';
-import 'package:share/share.dart';
+import 'package:share_plus/share_plus.dart';
 
 class ComposedSongDetails extends StatefulWidget {
   final ComposeHymns hymns = ComposeHymns();
 
-  ComposedSongDetails({Key? key, @required hymns}) : super(key: key);
+  ComposedSongDetails({Key? key, hymns}) : super(key: key);
 
   @override
   _ComposedSongDetailsState createState() => _ComposedSongDetailsState();
@@ -24,10 +24,9 @@ class _ComposedSongDetailsState extends State<ComposedSongDetails> {
               title: Text(widget.hymns.title ?? 'No hymn selected',
                   textAlign: TextAlign.center, style: globals.titleStyle()),
               subtitle: Text(
-                  '\n${widget.hymns.author ?? "Unknown Author"}'
-                  '\n\n${widget.hymns.tune ?? "Unknown Tune"}',
+                  '\n${widget.hymns.author ?? "Unknown Author"}\n\n${widget.hymns.tune ?? "Unknown Tune"}',
                   textAlign: TextAlign.center,
-                  style: globals.subheadStyle()),
+                  style: globals.titleStyle()),
             ),
           ),
         ),
@@ -64,10 +63,8 @@ class _ComposedSongDetailsState extends State<ComposedSongDetails> {
 
   shareIntent() {
     Share.share(
-        "${widget.hymns.title}"
-        "\n${widget.hymns.author}"
-        "\n${widget.hymns.tune}"
-        "\n${widget.hymns.lyric}",
+        "${widget.hymns.title}\n${widget.hymns.author}\n${widget.hymns.tune}\n${widget.hymns.lyric}",
         subject: "${widget.hymns.title}");
   }
 }
+

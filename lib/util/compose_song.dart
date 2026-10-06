@@ -1,30 +1,116 @@
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:littafin_wakoki/model/db_helper.dart';
-import 'package:littafin_wakoki/model/hymn_composer.dart';
+import 'package:littafin_wakoki/model/hymn.dart';
+import 'package:littafin_wakoki/util/hymn_listing.dart';
+import '../state/hymns_notifier.dart';
 
-class ComposeSong extends StatelessWidget {
+class ComposeSong extends StatefulWidget {
+  final Hymns? existingHymn;
+
+  const ComposeSong({Key? key, this.existingHymn}) : super(key: key);
+
+  @override
+  State<ComposeSong> createState() => _ComposeSongState();
+}
+
+class _ComposeSongState extends State<ComposeSong> {
   final _formKey = GlobalKey<FormState>();
   final titleNode = FocusNode();
   final authorNode = FocusNode();
   final tuneNode = FocusNode();
   final lyricNode = FocusNode();
-  final submitNode = FocusNode();
-  String _title = "";
-  String _author = "";
-  String _tune = "";
-  String _lyric = "";
 
-  late Color splash;
+  late TextEditingController _titleController;
+  late TextEditingController _authorController;
+  late TextEditingController _tuneController;
+  late TextEditingController _lyricController;
+
+  final DatabaseHelper _dbHelper = DatabaseHelper();
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.existingHymn?.title ?? '');
+    _authorController = TextEditingController(text: widget.existingHymn?.author ?? '');
+    _tuneController = TextEditingController(text: widget.existingHymn?.tune ?? '');
+    _lyricController = TextEditingController(text: widget.existingHymn?.lyric ?? '');
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _authorController.dispose();
+    _tuneController.dispose();
+    _lyricController.dispose();
+    titleNode.dispose();
+    authorNode.dispose();
+    tuneNode.dispose();
+    lyricNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveSong() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      if (widget.existingHymn != null) {
+        final updatedHymn = widget.existingHymn!.copyWith(
+          title: _titleController.text.trim(),
+          author: _authorController.text.trim(),
+          tune: _tuneController.text.trim(),
+          lyric: _lyricController.text.trim(),
+        );
+        await _dbHelper.updateCustomHymn(updatedHymn);
+      } else {
+        final newHymn = Hymns(
+          id: 0, // Auto-assigned by saveCustomHymn
+          title: _titleController.text.trim(),
+          author: _authorController.text.trim(),
+          tune: _tuneController.text.trim(),
+          lyric: _lyricController.text.trim(),
+          isCustom: 1,
+        );
+        await _dbHelper.saveCustomHymn(newHymn);
+      }
+
+      hymnGKey.currentState?.refreshList();
+      HymnsNotifier.instance.notifyHymnsChanged();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(widget.existingHymn != null
+                ? "Composed song updated successfully!"
+                : "Composed song saved successfully!"),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Error saving song: $e")),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context).colorScheme;
-    splash = Theme.of(context).splashColor;
+    final isEditing = widget.existingHymn != null;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Compose your song"),
+        title: Text(isEditing ? "Edit Composed Song" : "Compose Your Song"),
         centerTitle: true,
         actions: const <Widget>[
           Padding(
@@ -34,202 +120,110 @@ class ComposeSong extends StatelessWidget {
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Builder(
-          builder: (snackContext) {
-            return Form(
-              key: _formKey,
-              autovalidateMode: AutovalidateMode.onUserInteraction,
-              child: Padding(
-                padding: const EdgeInsets.all(4.0),
-                child: ListView(
-                  children: <Widget>[
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: TextFormField(
-                        keyboardType: TextInputType.text,
-                        focusNode: titleNode,
-                        onEditingComplete: () {
-                          FocusScope.of(context).requestFocus(authorNode);
-                        },
-                        validator: (val) {
-                          if (val!.isEmpty) {
-                            return "Enter Song Title !";
-                          } else {
-                            _title = val;
-                            return null;
-                          }
-                        },
-                        decoration: InputDecoration(
-                          hintText: "eg. Joy to the world",
-                          labelText: "Song Title",
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8.0),
-                            borderSide: BorderSide(
-                                color: theme.primaryContainer,
-                                width: 1,
-                                style: BorderStyle.solid),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8.0),
-                            borderSide: BorderSide(
-                                color: theme.primary,
-                                width: 1,
-                                style: BorderStyle.solid),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: TextFormField(
-                        keyboardType: TextInputType.text,
-                        focusNode: authorNode,
-                        onEditingComplete: () {
-                          FocusScope.of(context).requestFocus(tuneNode);
-                        },
-                        validator: (val) {
-                          if (val != null) {
-                            _author = val;
-                            return null;
-                          } else {
-                            return null;
-                          }
-                        },
-                        decoration: InputDecoration(
-                          hintText: "eg. Jim Reeves",
-                          labelText: "Song Author",
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8.0),
-                            borderSide: BorderSide(
-                                color: theme.primaryContainer,
-                                width: 1,
-                                style: BorderStyle.solid),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8.0),
-                            borderSide: BorderSide(
-                                color: theme.primary,
-                                width: 1,
-                                style: BorderStyle.solid),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: TextFormField(
-                        keyboardType: TextInputType.text,
-                        focusNode: tuneNode,
-                        onEditingComplete: () {
-                          FocusScope.of(context).requestFocus(lyricNode);
-                        },
-                        validator: (val) {
-                          if (val != null) {
-                            _tune = val;
-                            return null;
-                          } else {
-                            return null;
-                          }
-                        },
-                        decoration: InputDecoration(
-                          hintText: "eg. Joy to the world",
-                          labelText: "Song Tune",
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8.0),
-                            borderSide: BorderSide(
-                                color: theme.primaryContainer,
-                                width: 1,
-                                style: BorderStyle.solid),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8.0),
-                            borderSide: BorderSide(
-                                color: theme.primary,
-                                width: 1,
-                                style: BorderStyle.solid),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: TextFormField(
-                        keyboardType: TextInputType.multiline,
-                        maxLines: 8,
-                        focusNode: lyricNode,
-                        onEditingComplete: () {
-                          FocusScope.of(context).requestFocus(submitNode);
-                        },
-                        validator: (val) {
-                          if (val!.isEmpty) {
-                            return "Enter Song Lyric !";
-                          } else {
-                            _lyric = val;
-                            return null;
-                          }
-                        },
-                        decoration: InputDecoration(
-                          hintText: "eg. Here i am to worship",
-                          labelText: "Song Lyric",
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8.0),
-                            borderSide: BorderSide(
-                                color: theme.primaryContainer,
-                                width: 1,
-                                style: BorderStyle.solid),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8.0),
-                            borderSide: BorderSide(
-                                color: theme.primary,
-                                width: 1,
-                                style: BorderStyle.solid),
-                          ),
-                        ),
-                      ),
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        if (_formKey.currentState!.validate()) {
-                          addComposedSong();
-                          ScaffoldMessenger.of(snackContext).showSnackBar(
-                              const SnackBar(
-                                  content: Text("Composed Song saved !")));
-                          _formKey.currentState?.reset();
-                        }
-                      },
-                      style: ButtonStyle(
-                          overlayColor: MaterialStateProperty.all(splash),
-                          shape: MaterialStateProperty.all(
-                            RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8.0)),
-                          ),
-                          backgroundColor:
-                              MaterialStateProperty.all(theme.primary)),
-                      child: const Text(
-                        "Add Song",
-                        style: TextStyle(color: Colors.black),
-                      ),
-                    )
-                  ],
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12.0),
+                child: TextFormField(
+                  controller: _titleController,
+                  focusNode: titleNode,
+                  keyboardType: TextInputType.text,
+                  textInputAction: TextInputAction.next,
+                  onEditingComplete: () => FocusScope.of(context).requestFocus(authorNode),
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) {
+                      return "Please enter a song title";
+                    }
+                    return null;
+                  },
+                  decoration: InputDecoration(
+                    hintText: "e.g. Joy to the World",
+                    labelText: "Song Title *",
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+                  ),
                 ),
               ),
-            );
-          },
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12.0),
+                child: TextFormField(
+                  controller: _authorController,
+                  focusNode: authorNode,
+                  keyboardType: TextInputType.text,
+                  textInputAction: TextInputAction.next,
+                  onEditingComplete: () => FocusScope.of(context).requestFocus(tuneNode),
+                  decoration: InputDecoration(
+                    hintText: "e.g. Isaac Watts",
+                    labelText: "Author / Composer (Optional)",
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12.0),
+                child: TextFormField(
+                  controller: _tuneController,
+                  focusNode: tuneNode,
+                  keyboardType: TextInputType.text,
+                  textInputAction: TextInputAction.next,
+                  onEditingComplete: () => FocusScope.of(context).requestFocus(lyricNode),
+                  decoration: InputDecoration(
+                    hintText: "e.g. Antioch",
+                    labelText: "Tune / Meter (Optional)",
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 20.0),
+                child: TextFormField(
+                  controller: _lyricController,
+                  focusNode: lyricNode,
+                  keyboardType: TextInputType.multiline,
+                  maxLines: 10,
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) {
+                      return "Please enter the hymn lyrics";
+                    }
+                    return null;
+                  },
+                  decoration: InputDecoration(
+                    hintText: "Enter the stanzas and chorus here...",
+                    labelText: "Lyrics *",
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _isSaving ? null : _saveSong,
+                  icon: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator.adaptive(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save),
+                  label: Text(
+                    isEditing ? "Update Song" : "Save Composed Song",
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
-
-  void addComposedSong() async {
-    DatabaseHelper dbHelper = DatabaseHelper();
-    dbHelper.initDB();
-    ComposeHymns hymn = ComposeHymns(
-        title: _title, author: _author, tune: _tune, lyric: _lyric);
-    int id = await dbHelper.saveHymns(hymn);
-    if (kDebugMode) {
-      print(id);
-    }
-  }
 }
+

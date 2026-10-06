@@ -13,7 +13,6 @@ class PaymentWebView extends StatefulWidget {
 class _PaymentWebViewState extends State<PaymentWebView> {
   final _key = UniqueKey();
   int _page = 1;
-
   doneLoading() {
     setState(() => _page = 0);
   }
@@ -32,15 +31,15 @@ class _PaymentWebViewState extends State<PaymentWebView> {
       ),
       body: IndexedStack(index: _page, children: <Widget>[
         InAppWebView(
-          initialUrlRequest: URLRequest(url: Uri.parse(widget.url)),
+          initialUrlRequest: URLRequest(url: WebUri(widget.url)),
           key: _key,
-          onLoadStop: (InAppWebViewController controller, Uri? url) {
+          onLoadStop: (InAppWebViewController controller, WebUri? url) {
             doneLoading();
           },
         ),
         Container(
           color: Colors.white,
-          child: const Center(child: CircularProgressIndicator()),
+          child: const Center(child: CircularProgressIndicator.adaptive()),
         ),
       ]),
     );

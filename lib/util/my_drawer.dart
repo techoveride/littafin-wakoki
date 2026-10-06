@@ -1,31 +1,30 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_remote_config/firebase_remote_config.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:littafin_wakoki/main.dart' as main;
 import 'package:littafin_wakoki/model/globals.dart' as globals;
-import 'package:littafin_wakoki/util/about_us.dart';
-import 'package:littafin_wakoki/util/added_songs.dart';
-import 'package:littafin_wakoki/util/compose_song.dart';
-import 'package:littafin_wakoki/util/help_me.dart';
-import 'package:littafin_wakoki/util/main_details_screen.dart';
 import 'package:littafin_wakoki/util/report_bug.dart';
 import 'package:littafin_wakoki/util/settings.dart';
 import 'package:littafin_wakoki/util/support_us.dart';
-import 'package:share/share.dart';
+import 'app_dialog.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../service/hymn_sync_service.dart';
+import 'about_us.dart';
+import 'added_songs.dart';
+import 'compose_song.dart';
+import 'help_me.dart';
+import 'hymn_listing.dart';
+import '../state/hymns_notifier.dart';
+import '../state/purchase_notifier.dart';
+import 'pro_upgrade_dialog.dart';
 
 class MyDrawer extends StatefulWidget {
-  final Function? destroyBanner;
-  final Function? buildBanner;
   final bool? isTabletLayout;
 
-  const MyDrawer(
-      {Key? key, this.destroyBanner, this.buildBanner, this.isTabletLayout})
-      : super(key: key);
+  const MyDrawer({Key? key, this.isTabletLayout}) : super(key: key);
 
   @override
   _MyDrawerState createState() => _MyDrawerState();
@@ -36,20 +35,18 @@ class _MyDrawerState extends State<MyDrawer> {
     final FirebaseRemoteConfig remoteConfig = FirebaseRemoteConfig.instance;
     try {
       // Using default duration to force fetching from remote server.
+      // await remoteConfig.fetch(expiration: const Duration(seconds: 0));
       await remoteConfig.fetchAndActivate();
-
-      String storeUrl = remoteConfig.getString("app_store_url");
-      String playUrl = remoteConfig.getString("play_store_url");
+      String remoteVersion = remoteConfig.getString("app_version");
       String proStoreUrl = remoteConfig.getString("pro_store_url");
       String proPlayUrl = remoteConfig.getString("pro_play_url");
       String shareApp = remoteConfig.getString("share_app");
       String moreApps = remoteConfig.getString("more_apps");
-      globals.APP_STORE_URL = storeUrl;
-      globals.PLAY_STORE_URL = playUrl;
-      globals.PREMIUM_APP_STORE_URL = proStoreUrl;
-      globals.PREMIUM_PLAY_STORE_URL = proPlayUrl;
-      globals.share_app = shareApp;
-      globals.more_apps = moreApps;
+      if (proStoreUrl.isNotEmpty) globals.PREMIUM_APP_STORE_URL = proStoreUrl;
+      if (proPlayUrl.isNotEmpty) globals.PREMIUM_PLAY_STORE_URL = proPlayUrl;
+      if (shareApp.isNotEmpty) globals.share_app = shareApp;
+      if (moreApps.isNotEmpty) globals.more_apps = moreApps;
+      if (remoteVersion.isNotEmpty) globals.app_update = remoteVersion;
     } catch (exception) {
       debugPrint(
           'Unable to fetch remote config. Cached or default values will be '
@@ -57,9 +54,9 @@ class _MyDrawerState extends State<MyDrawer> {
     }
   }
 
-  static const int tabletBreakpoint = 600;
+  // static const int tabletBreakpoint = 600;
   late double shortestSide;
-  late Orientation orientation;
+  Orientation orientation = Orientation.portrait;
 
   @override
   Widget build(BuildContext context) {
@@ -92,21 +89,33 @@ class _MyDrawerState extends State<MyDrawer> {
               "hymnestryteam@outlook.com",
             ),
           ),
-          ListTile(
-              leading: ConstrainedBox(
-                constraints: BoxConstraints.tight(const Size.square(34.0)),
-                child: Image.asset(
-                  'images/premium.png',
-                  color: globals.nightMode ? Colors.white : Colors.black54,
+          ListenableBuilder(
+            listenable: PurchaseNotifier.instance,
+            builder: (context, _) {
+              final isPro = PurchaseNotifier.instance.isPro;
+              return ListTile(
+                leading: Icon(
+                  isPro ? Icons.verified : Icons.workspace_premium,
+                  color: Colors.amber[700],
+                  size: 28,
                 ),
-              ),
-              title: const Text(
-                "Premium Upgrade(No Ads)",
-              ),
-              onTap: () async {
-                await loadRemoteConfig();
-                premiumAppUpdate();
-              }),
+                title: Text(
+                  isPro ? "Pro Member Active" : "Upgrade to Pro (No Ads)",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                subtitle: Text(
+                  isPro
+                      ? "Lifetime ad-free access"
+                      : "Remove ads â€¢ ${PurchaseNotifier.instance.formattedPrice}",
+                  style: const TextStyle(fontSize: 12),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  showProUpgradeDialog(context);
+                },
+              );
+            },
+          ),
           ListTile(
             leading: const Icon(Icons.border_color),
             title: const Text(
@@ -114,7 +123,7 @@ class _MyDrawerState extends State<MyDrawer> {
             ),
             onTap: () {
               Navigator.push(context, MaterialPageRoute(builder: (_) {
-                return ComposeSong();
+                return const ComposeSong();
               }));
             },
           ),
@@ -124,8 +133,31 @@ class _MyDrawerState extends State<MyDrawer> {
               "My added song(s)",
             ),
             onTap: () {
-              Navigator.push(
-                  context, MaterialPageRoute(builder: (_) => AddedSong()));
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const AddedSong()));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.sync),
+            title: const Text(
+              "Check for Hymn Updates",
+            ),
+            onTap: () async {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text("Checking for new hymn updates...")),
+              );
+              final result = await HymnSyncService().syncRemoteHymns(forceSync: true);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(result.message)),
+                );
+                if (result.updatedCount > 0) {
+                  hymnGKey.currentState?.refreshList();
+                  HymnsNotifier.instance.notifyHymnsChanged();
+                }
+              }
             },
           ),
           ListTile(
@@ -140,20 +172,20 @@ class _MyDrawerState extends State<MyDrawer> {
             },
           ),
           ListTile(
-            leading: const Icon(Icons.cloud_circle),
-            trailing: Icon(
-                globals.nightMode == true ? Icons.cloud_done : Icons.cloud_off),
+            leading: const Icon(Icons.dark_mode),
+            trailing: Switch.adaptive(
+              value: globals.nightMode,
+              onChanged: (val) async {
+                await globals.setNightMode(val);
+                setState(() {});
+              },
+            ),
             title: const Text(
               "Night Mode",
             ),
-            onTap: () {
-              if (globals.nightMode == true) {
-                main.isLightTheme.add(false);
-                setTheme(false);
-              } else {
-                main.isLightTheme.add(true);
-                setTheme(true);
-              }
+            onTap: () async {
+              await globals.setNightMode(!globals.nightMode);
+              setState(() {});
             },
           ),
           ListTile(
@@ -239,72 +271,25 @@ class _MyDrawerState extends State<MyDrawer> {
               }));
             },
           ),
-          ListTile(
-            leading: const Icon(Icons.exit_to_app),
-            title: const Text(
-              "Exit",
+          if (!Platform.isIOS)
+            ListTile(
+              leading: const Icon(Icons.exit_to_app),
+              title: const Text(
+                "Exit",
+              ),
+              onTap: () async {
+                Navigator.of(context).pop();
+                final shouldExit = await showExitConfirmationDialog(context);
+                if (shouldExit) {
+                  await SystemNavigator.pop();
+                }
+              },
             ),
-            onTap: () {
-              _onBackPressed;
-            },
-          ),
         ],
       ),
     );
   }
 
-  get _onBackPressed => showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-            title: const Center(child: Text("Are You Sure ?")),
-            content: SizedBox(
-              height: 120,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: <Widget>[
-                  const Text("Do you want to exit"),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                            primary:
-                                Theme.of(context).colorScheme.primaryContainer,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8.0)),
-                            onPrimary: Colors.white,
-                            fixedSize: const Size(60.0, 30.0)),
-                        child: const Text("No"),
-                        onPressed: () {
-                          Navigator.of(context).pop(false);
-                        },
-                      ),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                            primary:
-                                Theme.of(context).colorScheme.primaryContainer,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8.0)),
-                            onPrimary: Colors.white,
-                            fixedSize: const Size(60.0, 30.0)),
-                        child: const Text("Yes"),
-                        onPressed: () {
-                          SystemChannels.platform
-                              .invokeMethod('SystemNavigator.pop');
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            elevation: 4.0,
-            contentPadding: const EdgeInsets.all(10.0),
-            shape: BeveledRectangleBorder(
-                side: BorderSide(
-                    color: Theme.of(context).colorScheme.primary, width: 1.0),
-                borderRadius: BorderRadius.circular(8.0)),
-          ));
 
   _launchURL(String myUrl) async {
     Uri url = Uri.parse(myUrl);
@@ -320,10 +305,8 @@ class _MyDrawerState extends State<MyDrawer> {
   void initState() {
     super.initState();
     debugPrint("Drawer Opened");
-    Future.delayed(const Duration(milliseconds: 500), () {
-      widget.destroyBanner!();
-    });
-    debugPrint("Banner Disposed");
+    Future.delayed(const Duration(milliseconds: 500), () {});
+
     loadRemoteConfig();
 //    versionCheck();
   }
@@ -331,123 +314,93 @@ class _MyDrawerState extends State<MyDrawer> {
   @override
   void dispose() {
     super.dispose();
-    widget.buildBanner!();
-    debugPrint("Banner Created");
-
     debugPrint("Drawer Closed");
   }
 
   _showVersionDialog(context) async {
-    await showDialog<String>(
+    await showAppDialog(
       context: context,
       barrierDismissible: false,
-      builder: (BuildContext context) {
-        String title = "New Update Available";
-        String message =
-            "There is a newer version of app available please update it now.";
-        String btnLabel = "Update Now";
-        String btnLabelCancel = "Later";
-        return Platform.isIOS
-            ? CupertinoAlertDialog(
-                title: Text(title),
-                content: Text(message),
-                actions: <Widget>[
-                  TextButton(
-                    child: Text(btnLabel),
-                    onPressed: () => _launchURL(globals.APP_STORE_URL),
-                  ),
-                  TextButton(
-                    child: Text(btnLabelCancel),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              )
-            : AlertDialog(
-                title: Text(title),
-                content: Text(message),
-                actions: <Widget>[
-                  TextButton(
-                    child: Text(btnLabel),
-                    onPressed: () => _launchURL(globals.PLAY_STORE_URL),
-                  ),
-                  TextButton(
-                    child: Text(btnLabelCancel),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              );
-      },
+      builder: (dialogCtx) => AppDialog(
+        icon: Icons.system_update,
+        title: "New Update Available",
+        subtitle: "A newer version of the app is available. Please update for the latest hymns and fixes.",
+        content: const SizedBox(height: 8),
+        actions: [
+          TextButton(
+            child: const Text("Later"),
+            onPressed: () => Navigator.pop(dialogCtx),
+          ),
+          FilledButton(
+            child: const Text("Update Now"),
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              _launchURL(Platform.isIOS ? globals.PREMIUM_APP_STORE_URL : globals.PREMIUM_PLAY_STORE_URL);
+            },
+          ),
+        ],
+      ),
     );
   }
 
   _showVersionUpdatedDialog(context) async {
-    await showDialog<String>(
+    await showAppDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        String title = "Congratulations!";
-        String message = "You have the latest version\nrate us !";
-        String btnLabel = "Rate Us";
-        String btnLabelCancel = "Later";
-        return Platform.isIOS
-            ? CupertinoAlertDialog(
-                title: Text(title),
-                content: Text(message),
-                actions: <Widget>[
-                  TextButton(
-                    child: Text(btnLabel),
-                    onPressed: () => _launchURL(globals.APP_STORE_URL),
-                  ),
-                  TextButton(
-                    child: Text(btnLabelCancel),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              )
-            : AlertDialog(
-                title: Text(title),
-                content: Text(message),
-                actions: <Widget>[
-                  TextButton(
-                    child: Text(btnLabel),
-                    onPressed: () => _launchURL(globals.PLAY_STORE_URL),
-                  ),
-                  TextButton(
-                    child: Text(btnLabelCancel),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              );
-      },
+      barrierDismissible: true,
+      builder: (dialogCtx) => AppDialog(
+        icon: Icons.check_circle_outline,
+        title: "Up to Date!",
+        subtitle: "You already have the latest version of Sacred Songs & Solos.",
+        content: const SizedBox(height: 8),
+        actions: [
+          TextButton(
+            child: const Text("Close"),
+            onPressed: () => Navigator.pop(dialogCtx),
+          ),
+          FilledButton(
+            child: const Text("Rate App"),
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              _launchURL(Platform.isIOS ? globals.PREMIUM_APP_STORE_URL : globals.PREMIUM_PLAY_STORE_URL);
+            },
+          ),
+        ],
+      ),
     );
   }
 
   void updateDialog(BuildContext context) {
-    String popUp = "Internet access required for app update";
-
-    showDialog(
-        context: context,
-        builder: (context) {
-          Timer(const Duration(milliseconds: 1500), () {
-            Navigator.of(context).pop();
-          });
-          return CupertinoAlertDialog(
-            title: Text(popUp),
-          );
+    showAppDialog(
+      context: context,
+      builder: (dialogCtx) {
+        Timer(const Duration(milliseconds: 1800), () {
+          if (dialogCtx.mounted) {
+            Navigator.of(dialogCtx).pop();
+          }
         });
+        return const AppDialog(
+          icon: Icons.wifi_off,
+          title: "Connection Required",
+          subtitle: "Internet access is required to check for app updates.",
+          content: SizedBox(height: 8),
+        );
+      },
+    );
   }
 
   void versionUpdate() async {
     if (globals.app_version.isEmpty || globals.app_update.isEmpty) {
+      debugPrint(globals.app_version);
+      debugPrint(globals.app_update);
       updateDialog(context);
     } else {
       //Get Current installed version of app
       double defaultVersion =
           double.parse(globals.app_version.trim().replaceAll(".", ""));
-      debugPrint("default Version :$defaultVersion");
+//      print("default :$defaultVersion");
       double newVersion =
           double.parse(globals.app_update.trim().replaceAll(".", ""));
-      debugPrint("New Version : $newVersion");
+//      print(newVersion);
       if (newVersion > defaultVersion) {
         _showVersionDialog(context);
       } else {
@@ -469,8 +422,8 @@ class _MyDrawerState extends State<MyDrawer> {
     Platform.isAndroid
         ? url = globals.PLAY_STORE_URL
         : url = globals.APP_STORE_URL;
-
     Share.share(
-        "Worship God in Awe\nInstall Littafin Wakoki app and enjoy the free tunes attached to each hymn.\nGet it here: \n $url");
+        "Worship God in Awe\nInstall Sacred Songs & Solos app and enjoy the free tunes attached to each hymn.\nGet it here: \n $url");
   }
 }
+

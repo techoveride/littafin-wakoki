@@ -1,269 +1,274 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:audioplayer/audioplayer.dart';
-import 'package:draggable_scrollbar/draggable_scrollbar.dart';
-import 'package:flutter/foundation.dart';
+﻿import 'package:draggable_scrollbar/draggable_scrollbar.dart';
 import 'package:flutter/material.dart';
+import 'package:littafin_wakoki/model/db_helper.dart';
 import 'package:littafin_wakoki/model/globals.dart' as globals;
 import 'package:littafin_wakoki/model/hymn.dart';
-import 'package:path_provider/path_provider.dart';
+import '../state/hymns_notifier.dart';
 
-GlobalKey<_HymnListingState> hymnGKey = GlobalKey();
+GlobalKey<HymnListingState> hymnGKey = GlobalKey();
 
 class HymnListing extends StatefulWidget {
   final ValueChanged<Hymns>? hymnSelectedCallback;
   final Hymns? hymnSelected;
 
-  HymnListing({Key? key, this.hymnSelectedCallback, this.hymnSelected})
-      : super(key: key);
+  const HymnListing({
+    Key? key,
+    required this.hymnSelectedCallback,
+    this.hymnSelected,
+  }) : super(key: key);
 
   @override
-  _HymnListingState createState() => _HymnListingState();
+  HymnListingState createState() => HymnListingState();
 }
 
-class _HymnListingState extends State<HymnListing> {
-  late File jsonFile;
-  late Directory dir;
-
-  // String fileName = "HymnLyricsHausa.json";
-  bool fileExists = false;
-
-  List<Hymns> _hymnList = <Hymns>[];
-  int hymnSize = 0;
-  var hymn;
+class HymnListingState extends State<HymnListing> {
+  final DatabaseHelper _dbHelper = DatabaseHelper();
+  List<Hymns> _hymnList = [];
+  bool _isLoading = true;
+  String _currentSort = 'number';
+  String _currentQuery = '';
 
   final ScrollController _scrollControl = ScrollController();
-
-  static const double _itemExtent = 58.0;
-
-  Future<List<Hymns>> getHymn() async {
-    jsonFile = await _localFile;
-    fileExists = jsonFile.existsSync();
-    if (fileExists) {
-      hymn = json.decode(jsonFile.readAsStringSync());
-      setState(() {
-        _hymnList = List<Hymns>.from(hymn.map((i) => Hymns.fromJson(i)));
-        hymnSize = _hymnList.length;
-      });
-//      print(_hymnList[2].title);
-    }
-    return _hymnList;
-  }
-
-  Future<String> get _localPath async {
-    final directory = await getApplicationDocumentsDirectory();
-    return directory.path;
-  }
-
-  Future<File> get _localFile async {
-    final path = await _localPath;
-    return File('$path/${globals.fileName}');
-  }
-
-//  Future<File> _writeData(String message) async {
-//    final file = await _localFile;
-//    return file.writeAsString('$message');
-//  }
-
-  final GlobalKey<_HymnListingState> hymnListingKey =
-      GlobalKey<_HymnListingState>();
-
-  onSearchedItem(String value) {
-//    print(value);
-    String search;
-    setState(() {
-      _hymnList =
-          List<Hymns>.from(hymn.map((i) => Hymns.fromJson(i))).where((item) {
-        search =
-            "${item.title.trim().toLowerCase()} ${item.lyric.toLowerCase()}";
-        return search.contains(value.toLowerCase());
-      }).toList();
-      hymnSize = _hymnList.length;
-    });
-//    print(hymnSize);
-  }
-
-  sortByTitle() {
-    Comparator<Hymns> titleComparator =
-        (a, b) => (a.title.substring(4)).compareTo(b.title.substring(4));
-
-    setState(() {
-      _hymnList = List<Hymns>.from(hymn.map((i) => Hymns.fromJson(i)));
-      _hymnList.sort(titleComparator);
-    });
-  }
-
-  sortByNumber() {
-    setState(() {
-      _hymnList = List<Hymns>.from(hymn.map((i) => Hymns.fromJson(i)));
-//      _hymnList.sort((a, b) => (a.id).compareTo(b.id));
-    });
-  }
-
-  loadHymn() async {
-    setState(() {
-      _hymnList = globals.defaultHymn;
-    });
-  }
+  static const double _itemExtent = 64.0;
 
   @override
   void initState() {
-//    getHymn();
-    loadHymn();
-    getHymn();
     super.initState();
+    HymnsNotifier.instance.addListener(_onHymnsChanged);
+    loadHymns();
   }
 
-  onSearchExit(String value) {
-    setState(() {
-      _hymnList = List<Hymns>.from(hymn.map((i) => Hymns.fromJson(i)));
-      hymnSize = _hymnList.length;
-    });
+  @override
+  void dispose() {
+    HymnsNotifier.instance.removeListener(_onHymnsChanged);
+    _scrollControl.dispose();
+    super.dispose();
+  }
+
+  void _onHymnsChanged() {
+    if (mounted) {
+      refreshList();
+    }
+  }
+
+  Future<void> loadHymns() async {
+    setState(() => _isLoading = true);
+    final hymns = await _dbHelper.getHymnsList(sortBy: _currentSort);
+    if (mounted) {
+      setState(() {
+        _hymnList = hymns;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> refreshList() async {
+    if (_currentQuery.isNotEmpty) {
+      onSearchedItem(_currentQuery);
+    } else {
+      await loadHymns();
+    }
+  }
+
+  void onSearchedItem(String value) async {
+    _currentQuery = value.trim();
+    if (_currentQuery.isEmpty) {
+      await loadHymns();
+      return;
+    }
+
+    final results = await _dbHelper.searchHymns(_currentQuery);
+    if (mounted) {
+      setState(() {
+        _hymnList = results;
+      });
+    }
+  }
+
+  void onSearchExit(String value) {
+    _currentQuery = '';
+    loadHymns();
+  }
+
+  void sortByTitle() async {
+    _currentSort = 'title';
+    if (_currentQuery.isNotEmpty) {
+      setState(() {
+        _hymnList.sort(
+            (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+      });
+    } else {
+      await loadHymns();
+    }
+  }
+
+  void sortByNumber() async {
+    _currentSort = 'number';
+    if (_currentQuery.isNotEmpty) {
+      setState(() {
+        _hymnList.sort((a, b) => a.id.compareTo(b.id));
+      });
+    } else {
+      await loadHymns();
+    }
+  }
+
+  String titleCase(String title) {
+    if (title.isEmpty) return title;
+    return title.split(' ').map((word) {
+      if (word.isEmpty) return word;
+      if (word.length == 1) return word.toUpperCase();
+      return word[0].toUpperCase() + word.substring(1);
+    }).join(' ');
   }
 
   @override
   Widget build(BuildContext context) {
-    return hymnList();
-  }
-
-  /*Widget hymnList() {
-    if (hymnSize != null)
-      return ListView(
-        children: _hymnList.map((hymn) {
-          return Card(
-            elevation: 4.5,
-            margin: EdgeInsets.only(bottom: 3.0, right: 4.0, left: 4.0),
-            child: ListTile(
-              title: Text(hymn.title),
-              selected: widget.hymnSelected == hymn,
-              onTap: () => widget.hymnSelectedCallback(hymn),
-            ),
-          );
-        }).toList(),
+    if (_isLoading) {
+      return const Center(
+        child: CircularProgressIndicator.adaptive(),
       );
-    else {
-      return Container();
     }
-  }*/
 
-  /*Widget hymnList() {
-    return Padding(
-        padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
-        child: FutureBuilder(
-          future: getHymn(),
-          builder: (BuildContext buildContext, AsyncSnapshot snapshot) {
-            if (snapshot.hasData) {
-              return ListView.builder(
-                  itemCount: hymnSize,
-                  itemBuilder: (_, index) {
-                    return Card(
-                      elevation: 4.5,
-                      margin:
-                          EdgeInsets.only(bottom: 3.0, right: 4.0, left: 4.0),
-                      child: ListTile(
-                        title: Text(
-                          "${_hymnList[index].title}",
-                        ),
-                        selected: widget.hymnSelected == _hymnList[index],
-                        onTap: () =>
-                            widget.hymnSelectedCallback(_hymnList[index]),
-                      ),
-                    );
-                  });
-            } else {
-              return Center(
-                  child: CircularProgressIndicator(
-                strokeWidth: 6.0,
-                value: 4.0,
-              ));
-              */
-  /*ListView(
-                children: <Widget>[
-                  Card(
-                    elevation: 4.5,
-                    margin: EdgeInsets.only(bottom: 3.0, right: 4.0, left: 4.0),
-                    child: ListTile(
-                      title: Text("Hymn Not found"),
-                      subtitle: Text("Please enter Hymn Number or Title!"),
-                    ),
-                  )
-                ],
-              );*/
-  /*
-            }
-          },
-        ));
-  }*/
-  Widget hymnList() {
-    return Padding(
-        padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
-        child: DraggableScrollbar.arrows(
-          alwaysVisibleScrollThumb: true,
-          backgroundColor: Theme.of(context).colorScheme.secondary,
-          padding: const EdgeInsets.only(right: 4.0),
-          labelTextBuilder: (double offset) => Text(
-              "${(offset ~/ _itemExtent) + 1}",
-              style: const TextStyle(color: Colors.white)),
-          controller: _scrollControl,
-          child: ListView.builder(
-            controller: _scrollControl,
-            itemCount: _hymnList.length,
-            itemExtent: _itemExtent,
-            itemBuilder: (_, index) {
-              return Card(
-                elevation: 4.5,
-                margin:
-                    const EdgeInsets.only(bottom: 3.0, right: 4.0, left: 4.0),
-                child: ListTile(
-                    leading: Text(
-                      _hymnList[index]
-                          .title
-                          .substring(0, _hymnList[index].title.indexOf('-')),
-                      style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 18.0,
-                          color: Theme.of(context).colorScheme.secondary),
-                    ),
-                    title: Text(
-                      _hymnList[index]
-                          .title
-                          .substring(_hymnList[index].title.indexOf('-') + 1),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: true,
-                    ),
-                    selected: widget.hymnSelected == _hymnList[index],
-                    onTap: () async {
-                      widget.hymnSelectedCallback!(
-                        _hymnList[index],
-                      );
-                      // widget.hymnSelected == ;
-                      if (kDebugMode) {
-                        print("\n${_hymnList[index].id}"
-                            "\nSelected hymn number : ${widget.hymnSelected?.id} \n "
-                            "List Index : $index");
-                      }
-                      if (globals.isPlaying) {
-                        setState(() {
-                          globals.tuneIcon = globals.play;
-                          globals.playerState = AudioPlayerState.STOPPED;
-                        });
-                        await globals.player.stop();
-                      }
-                      globals.load(_hymnList[index].title);
-                    }),
-              );
-            },
+    if (_hymnList.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              Text(
+                _currentQuery.isNotEmpty
+                    ? "No hymns found matching '$_currentQuery'"
+                    : "No hymns available",
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            ],
           ),
-        )
-        // : const Center(
-        //     child: CircularProgressIndicator(
-        //       strokeWidth: 6.0,
-        //       valueColor: AlwaysStoppedAnimation(Colors.lightGreenAccent),
-        //       value: .8,
-        //     ),
-        //   ),
-        );
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: DraggableScrollbar.arrows(
+        alwaysVisibleScrollThumb: true,
+        backgroundColor: Theme.of(context).colorScheme.secondary,
+        padding: const EdgeInsets.only(right: 4.0),
+        labelTextBuilder: (double offset) => Text(
+          "${(offset ~/ _itemExtent) + 1}",
+          style: const TextStyle(color: Colors.white),
+        ),
+        controller: _scrollControl,
+        child: ListView.builder(
+          controller: _scrollControl,
+          itemCount: _hymnList.length,
+          itemExtent: _itemExtent,
+          itemBuilder: (_, index) {
+            final hymn = _hymnList[index];
+            final bool isSelected = widget.hymnSelected?.id == hymn.id;
+
+            return Card(
+              elevation: isSelected ? 6.0 : 3.0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.0),
+                side: isSelected
+                    ? BorderSide(
+                        color: Theme.of(context).colorScheme.secondary,
+                        width: 2.0,
+                      )
+                    : BorderSide.none,
+              ),
+              color: isSelected
+                  ? Theme.of(context)
+                      .colorScheme
+                      .secondary
+                      .withValues(alpha: 0.12)
+                  : null,
+              margin:
+                  const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.5),
+              child: ListTile(
+                dense: true,
+                leading: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0, vertical: 4.0),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.secondary
+                        : Theme.of(context)
+                            .colorScheme
+                            .secondary
+                            .withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6.0),
+                  ),
+                  child: Text(
+                    hymn.isUserComposed ? "CUSTOM" : indexOptimiser(hymn.id),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: hymn.isUserComposed ? 11.0 : 15.0,
+                      color: isSelected
+                          ? Colors.white
+                          : Theme.of(context).colorScheme.secondary,
+                    ),
+                  ),
+                ),
+                title: Text(
+                  titleCase(hymn.title.trim()),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    fontSize: 15.0,
+                  ),
+                ),
+                subtitle: hymn.isUserComposed
+                    ? const Text("User Composed Song",
+                        style: TextStyle(fontSize: 12))
+                    : (hymn.author != null && hymn.author!.isNotEmpty
+                        ? Text(
+                            hymn.author!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          )
+                        : null),
+                trailing: hymn.favorite == 1
+                    ? const Icon(Icons.favorite,
+                        color: Colors.redAccent, size: 20)
+                    : null,
+                selected: isSelected,
+                onTap: () async {
+                  widget.hymnSelectedCallback?.call(hymn);
+                  if (globals.isPlaying) await globals.player.stop();
+                  if (!hymn.isUserComposed) {
+                    globals.load(
+                      hymn.id.toString(),
+                      tuneSource: hymn.tune,
+                      hymnId: hymn.id,
+                    );
+                  }
+                },
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 }
+
+String indexOptimiser(int id) {
+  if (id.toString().length == 1) {
+    return "000$id";
+  } else if (id.toString().length == 2) {
+    return "00$id";
+  } else if (id.toString().length == 3) {
+    return "0$id";
+  } else {
+    return id.toString();
+  }
+}
+

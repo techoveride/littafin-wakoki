@@ -1,137 +1,122 @@
-import 'dart:async';
-import 'dart:convert';
+﻿import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:littafin_wakoki/model/globals.dart' as globals;
 import 'package:littafin_wakoki/util/main_details_screen.dart';
-import 'package:path/path.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
-import 'model/hymn.dart';
-
-//local variables
-late File jsonFile;
-bool fileExists = false;
+import 'ads/applifecyclereactor.dart';
+import 'ads/appopenadmanager.dart';
+import 'model/db_helper.dart';
+import 'service/hymn_sync_service.dart';
+import 'state/hymns_notifier.dart';
+import 'state/purchase_notifier.dart';
+import 'state/reading_settings_notifier.dart';
 
 void main() async {
-  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
-  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
-  await Firebase.initializeApp();
+  WidgetsFlutterBinding.ensureInitialized();
 
-  await getApplicationDocumentsDirectory().then((directory) async {
-    jsonFile = File(join(directory.path, globals.fileName));
-    fileExists = jsonFile.existsSync();
-    globals.load("001-Ubangiji Allah, Ga Mu Nan Gabanka");
-    if (fileExists) {
-      if (kDebugMode) {
-        print("File Already Created");
-      }
-      //Loads hymns from bootup
-      var hymn = json.decode(jsonFile.readAsStringSync());
-      globals.defaultHymn =
-          List<Hymns>.from(hymn.map((i) => Hymns.fromJson(i)));
-      //load finished
-    } else {
-      if (kDebugMode) {
-        print("Creating and Writing to File");
-      }
-      final file = await getApplicationDocumentsDirectory().then((dir) {
-        return File(join(dir.path, globals.fileName));
-      });
-      file.writeAsStringSync(json.encode(listHymns));
-      //Loads hymns from bootup
-      var hymn = json.decode(jsonFile.readAsStringSync());
-      globals.defaultHymn =
-          List<Hymns>.from(hymn.map((i) => Hymns.fromJson(i)));
-      //load finished
+  // Mobile ads are supported on Android and iOS only
+  final isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+  if (isMobile) {
+    try {
+      await MobileAds.instance.initialize();
+      // Global App Open Ad lifecycle management
+      AppOpenAdManager.instance.loadAd();
+      AppLifecycleReactor(appOpenAdManager: AppOpenAdManager.instance)
+          .listenToAppStateChanges();
+    } catch (e) {
+      debugPrint("MobileAds initialization error: $e");
     }
+  }
+
+  // Safe Firebase initialization
+  final isFirebaseConfigured =
+      kIsWeb || (Platform.isAndroid || Platform.isIOS || Platform.isMacOS);
+  if (isFirebaseConfigured) {
+    try {
+      await Firebase.initializeApp();
+    } catch (e) {
+      debugPrint("Firebase not initialized: $e");
+    }
+  }
+
+  // Initialize SQLite database and load hymns
+  final dbHelper = DatabaseHelper();
+  await dbHelper.initDB();
+  globals.defaultHymn = await dbHelper.getHymnsList();
+
+  // Non-blocking background sync check
+  HymnSyncService().syncRemoteHymns().then((result) {
+    if (result.updatedCount > 0) {
+      debugPrint("Background sync: ${result.message}");
+      HymnsNotifier.instance.notifyHymnsChanged();
+    }
+  }).catchError((e) {
+    debugPrint("Background sync skipped: $e");
   });
-  //Loads the theme mode of the before bootup
+
+  // Load theme and preferences
   SharedPreferences preferences = await SharedPreferences.getInstance();
+  String? savedTheme = preferences.getString("appTheme");
+  if (savedTheme != null) {
+    globals.currentThemeKey = savedTheme;
+  }
+
   bool? status = preferences.getBool("nightMode");
-  if (status != null) {
-    globals.nightMode = status;
-  } else {
-    globals.nightMode = false;
+  globals.nightMode = status ?? false;
+
+  // Initialize active theme
+  globals.appThemeNotifier.value = globals.getActiveTheme();
+
+  // Load Keep Screen Awake setting
+  bool? wakeLockEnabled = preferences.getBool("wakelock");
+  try {
+    if (wakeLockEnabled == true) {
+      await WakelockPlus.enable();
+      debugPrint("Screen awake enabled on boot");
+    } else {
+      await WakelockPlus.disable();
+    }
+  } catch (e) {
+    debugPrint("Boot wakelock setup error: $e");
   }
 
-  //load hymn Details prefs
-  var colorBg = preferences.getInt("bgColor");
-  if (colorBg != null) {
-    globals.bgColor = Color(colorBg);
-  } else {
-    globals.bgColor = Colors.white;
-  }
+  // Load hymn Details reading preferences via ReadingSettingsNotifier
+  await ReadingSettingsNotifier.instance.init(preferences);
 
-  var colorText = preferences.getInt("txtColor");
-  if (colorText != null) {
-    globals.txtColor = Color(colorText);
-  } else {
-    globals.txtColor = Colors.black;
-  }
+  // Initialize In-App Purchases & Pro status
+  await PurchaseNotifier.instance.init();
 
-  var sizeFont = preferences.getDouble("fontSize");
-  if (sizeFont != null) {
-    globals.fontSize = sizeFont;
-  } else {
-    globals.fontSize = 18.0;
-  }
+  // Listen for legacy nightMode stream events from drawer
+  isLightTheme.stream.listen((isDark) {
+    globals.setNightMode(isDark);
+  });
 
-  var sizeLineSp = preferences.getDouble("lineSp");
-  if (sizeLineSp != null) {
-    globals.lineSp = sizeLineSp;
-  } else {
-    globals.lineSp = 1.2;
-  }
-
-  runApp(MyApp());
-  // whenever your initialization is completed, remove the splash screen:
-  FlutterNativeSplash.remove();
+  runApp(const MyApp());
 }
 
-/*ThemeData _defaultTheme() {
-  return ThemeData(
-      primarySwatch: Colors.green,
-      accentColor: Colors.lightGreen,
-      splashColor: Colors.lightGreenAccent,
-      // fontFamily: _fontFamily,
-      textTheme: TextTheme(
-          headline: TextStyle(fontWeight: FontWeight.w400),
-          subhead: TextStyle(fontWeight: FontWeight.w400),
-          title: TextStyle(fontWeight: FontWeight.w400),
-          subtitle: TextStyle(fontWeight: FontWeight.w400)));
-}
-
-setTheme(bool mode) async {
-  SharedPreferences preferences = await SharedPreferences.getInstance();
-  preferences.setBool("nightMode", mode);
-
-  nightMode = mode;
-  nightMode == true
-      ? _themeMode = ThemeData.dark()
-      : _themeMode = _defaultTheme();
-}*/
-
-StreamController<bool> isLightTheme = StreamController();
+final StreamController<bool> isLightTheme = StreamController<bool>.broadcast();
 
 class MyApp extends StatelessWidget {
-  MyApp({Key? key}) : super(key: key);
+  const MyApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<bool>(
-        initialData: globals.nightMode,
-        stream: isLightTheme.stream,
-        builder: (context, snapshot) {
-          return MaterialApp(
-              theme: snapshot.data! ? ThemeData.dark() : globals.defaultTheme(),
-              debugShowCheckedModeBanner: false,
-              home: MasterDetailsScreen());
-        });
+    return ValueListenableBuilder<ThemeData>(
+      valueListenable: globals.appThemeNotifier,
+      builder: (context, activeTheme, _) {
+        return MaterialApp(
+          theme: activeTheme,
+          debugShowCheckedModeBanner: false,
+          home: const MasterDetailsScreen(),
+        );
+      },
+    );
   }
 }

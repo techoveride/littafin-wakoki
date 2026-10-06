@@ -1,573 +1,480 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
+﻿import 'dart:async';
 
-import 'package:audioplayer/audioplayer.dart';
-import 'package:flutter/foundation.dart';
-// import  'package:audioplayers/audioplayers.dart';
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
+import 'package:littafin_wakoki/model/db_helper.dart';
 import 'package:littafin_wakoki/model/globals.dart' as globals;
 import 'package:littafin_wakoki/model/hymn.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share/share.dart';
+import 'package:littafin_wakoki/util/hymn_listing.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
-GlobalKey<_HymnDetailsState> hymnDetailKey = GlobalKey();
+import '../ads/anchored_adaptive_ad.dart';
+import '../state/hymns_notifier.dart';
+import '../state/reading_settings_notifier.dart';
+
+GlobalKey<HymnDetailsState> hymnDetailKey = GlobalKey();
 
 class HymnDetails extends StatefulWidget {
   final bool isInTabletLayout;
   final Hymns hymns;
   final double? adPadding;
+  final VoidCallback? onFavoriteChanged;
 
-  HymnDetails(
-      {required this.isInTabletLayout, required this.hymns, this.adPadding});
+  const HymnDetails({
+    Key? key,
+    required this.isInTabletLayout,
+    required this.hymns,
+    this.adPadding,
+    this.onFavoriteChanged,
+  }) : super(key: key);
 
   @override
-  _HymnDetailsState createState() => _HymnDetailsState();
+  HymnDetailsState createState() => HymnDetailsState();
 }
 
-class _HymnDetailsState extends State<HymnDetails> {
-  GlobalKey<ScaffoldState> scaffoldState = GlobalKey();
-  GlobalKey<ScaffoldState> tabViewScaffold = GlobalKey();
-
-  late File jsonFile;
-  late Directory dir;
-
-  // String fileName = "HymnLyricsHausa_v1.json";
-  bool fileExists = false;
-  bool isPlaying = false;
-
-  // var hymn ;
-  List<Hymns>? _hymnList;
-
-  int hymnSize = 0;
-
-  IconData favIcon = Icons.adb_outlined;
-
+class HymnDetailsState extends State<HymnDetails> with WidgetsBindingObserver {
+  final DatabaseHelper _dbHelper = DatabaseHelper();
+  IconData favIcon = Icons.favorite_border;
   final IconData _off = Icons.favorite_border;
   final IconData _on = Icons.favorite;
 
-  late StreamSubscription audioPlayerStateSubs;
-
-  double? barHeight;
+  StreamSubscription<PlayerState>? _audioPlayerStateSubs;
   bool tuneIconVisibility = true;
-
-  //load Audio file
-  void initAudioPlayer() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      //do something
-    });
-
-    audioPlayerStateSubs =
-        globals.player.onPlayerStateChanged.listen((listener) async {
-      if (listener == AudioPlayerState.PLAYING) {
-        if (kDebugMode) {
-          print("Tune playing");
-        }
-      } else if (listener == AudioPlayerState.STOPPED) {
-        if (kDebugMode) {
-          print("Tune Stopped");
-        }
-      } else if (listener == AudioPlayerState.COMPLETED) {
-        if (kDebugMode) {
-          print("Tune Completed");
-        }
-        await globals.player.stop();
-        setState(() {
-          globals.tuneIcon = globals.play;
-          globals.playerState = AudioPlayerState.COMPLETED;
-        });
-        widget.isInTabletLayout
-            ? tabOnCompletedSnackbar()
-            : onCompletedSnackbar();
-      } else if (listener == AudioPlayerState.PAUSED) {
-        if (kDebugMode) {
-          print("Tune Paused");
-        }
-      }
-    }, onError: (error) async {
-      globals.playerState = AudioPlayerState.STOPPED;
-      await stopPlayer();
-      widget.isInTabletLayout ? audioTabSnackBuilder() : audioSnackBuilder();
-      if (kDebugMode) {
-        print("AudioPlayer Subscription error $error");
-      }
-    });
-  }
-
+  double? barHeight;
   late ScrollController _scrollController;
 
   @override
   void initState() {
-    initAudioPlayer();
-    getHymn();
-    _scrollController = ScrollController();
     super.initState();
+    _scrollController = ScrollController();
+    favIcon = widget.hymns.favorite == 1 ? _on : _off;
+
+    initAudioPlayer();
+    _initFavoriteState();
+    _loadTune();
+    _applyWakeLock();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didUpdateWidget(covariant HymnDetails oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.hymns.id != widget.hymns.id) {
+      _stopAndResetPlayer();
+      _initFavoriteState();
+      _loadTune();
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(0.0);
+      }
+    }
+  }
+
+  void _stopAndResetPlayer() {
+    try {
+      globals.player.stop();
+    } catch (e) {
+      debugPrint("Error stopping player on hymn switch: $e");
+    }
+    globals.mp3Uri = '';
+    globals.tuneIcon = globals.play;
+    globals.playerState = PlayerState.stopped;
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _loadTune() {
+    if (!widget.hymns.isUserComposed && widget.hymns.id > 0) {
+      globals.load(
+        widget.hymns.id.toString(),
+        tuneSource: widget.hymns.tune,
+        hymnId: widget.hymns.id,
+      );
+    }
+  }
+
+  Future<void> _handlePlayPressed({bool isTablet = false}) async {
+    if (globals.isPlaying) {
+      await pausePlayer();
+      if (isTablet) {
+        audioTabSnackBuilder();
+      } else {
+        audioSnackBuilder();
+      }
+    } else {
+      try {
+        await globals.playSound(
+          onStreamingStarted: () {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("Streaming tune & caching for offline use..."),
+                  duration: Duration(seconds: 2),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+          },
+          onOfflineNotification: (message) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(message),
+                  duration: const Duration(seconds: 4),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+          },
+        );
+        if (mounted) {
+          setState(() {
+            globals.tuneIcon = globals.pause;
+            globals.playerState = PlayerState.playing;
+          });
+          if (isTablet) {
+            audioTabSnackBuilder();
+          } else {
+            audioSnackBuilder();
+          }
+        }
+      } catch (e) {
+        debugPrint("Play tune notice: $e");
+      }
+    }
+  }
+
+  Future<void> _initFavoriteState() async {
+    if (widget.hymns.id <= 0) return;
+    final current = await _dbHelper.getHymnById(widget.hymns.id);
+    if (current != null && mounted) {
+      setState(() {
+        favIcon = current.favorite == 1 ? _on : _off;
+      });
+    }
+  }
+
+  void initAudioPlayer() {
+    _audioPlayerStateSubs =
+        globals.player.onPlayerStateChanged.listen((state) async {
+      if (state == PlayerState.completed) {
+        await globals.player.stop();
+        if (mounted) {
+          setState(() {
+            globals.tuneIcon = globals.play;
+            globals.playerState = PlayerState.completed;
+          });
+          widget.isInTabletLayout
+              ? tabOnCompletedSnackbar()
+              : onCompletedSnackbar();
+        }
+      }
+    }, onError: (error) async {
+      await stopPlayer();
+      if (mounted) {
+        widget.isInTabletLayout ? audioTabSnackBuilder() : audioSnackBuilder();
+        debugPrint("AudioPlayer subscription error: $error");
+      }
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _applyWakeLock();
+    }
+  }
+
+  Future<void> _applyWakeLock() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool("wakelock") == true) {
+        await WakelockPlus.enable();
+      }
+    } catch (e) {
+      debugPrint("HymnDetails wakelock notice: $e");
+    }
   }
 
   @override
   void dispose() {
-    audioPlayerStateSubs.cancel();
+    _audioPlayerStateSubs?.cancel();
     _scrollController.dispose();
+    WidgetsBinding.instance.removeObserver(this);
+    try {
+      globals.player.stop();
+      globals.tuneIcon = globals.play;
+      globals.playerState = PlayerState.stopped;
+    } catch (_) {}
     super.dispose();
   }
 
-  Future<File> _writeData(String message) async {
-    final file = await getApplicationDocumentsDirectory().then((dir) {
-      return File("${dir.path}/${globals.fileName}");
-    });
-    return file.writeAsString(message);
-  }
-
-  void updateFavorite(int index, int flag) {
-    listHymns = _hymnList!;
-    listHymns[index].favorite = flag;
-    _writeData(json.encode(listHymns));
-  }
-
-  Future<List<Hymns>?> getHymn() async {
-    jsonFile = await getApplicationDocumentsDirectory()
-        .then((dir) => File("${dir.path}/${globals.fileName}"));
-    fileExists = jsonFile.existsSync();
-    if (fileExists) {
-      var hymn = json.decode(jsonFile.readAsStringSync());
+  void toggleFavorite() async {
+    if (widget.hymns.id <= 0) return;
+    final newFav = await _dbHelper.toggleFavorite(widget.hymns.id);
+    if (mounted) {
       setState(() {
-        _hymnList = List<Hymns>.from(hymn.map((i) => Hymns.fromJson(i)));
-        if (kDebugMode) {
-          print("Hymn Size Onload${_hymnList?.length}");
-        }
-        hymnSize = _hymnList!.length;
+        widget.hymns.favorite = newFav;
+        favIcon = newFav == 1 ? _on : _off;
       });
+      widget.onFavoriteChanged?.call();
+      hymnGKey.currentState?.refreshList();
+      HymnsNotifier.instance.notifyHymnsChanged();
+
+      final message = newFav == 1
+          ? "Hymn ${indexOptimiser(widget.hymns.id)} added to favorites"
+          : "Hymn ${indexOptimiser(widget.hymns.id)} removed from favorites";
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+      );
     }
-    favInit();
-    return _hymnList;
   }
 
-  /* final Widget tabTuneBar = Container(
-    height: 36,
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: <Widget>[
-        IconButton(
-            icon: Icon(globals.tuneIcon),
-            onPressed: () async {
-              if (globals.isPlaying) {
-                await pausePlayer();
-              } else {
-                await globals.playSound();
-                setState(() {
-                  globals.tuneIcon = globals.pause;
-                  globals.playerState = AudioPlayerState.PLAYING;
-                });
-              }
-            }),
-        IconButton(
-            icon: Icon(globals.stop),
-            onPressed: () async {
-              await stopPlayer();
-            }),
-      ],
-    ),
-  );*/
+  void hideTabTuneBar(bool hide) {
+    setState(() {
+      barHeight = hide ? 0.0 : 36.0;
+      tuneIconVisibility = !hide;
+    });
+  }
+
+  Future<void> pausePlayer() async {
+    await globals.player.pause();
+    setState(() {
+      globals.tuneIcon = globals.play;
+      globals.playerState = PlayerState.paused;
+    });
+  }
+
+  Future<void> stopPlayer() async {
+    await globals.player.stop();
+    setState(() {
+      globals.tuneIcon = globals.play;
+      globals.playerState = PlayerState.stopped;
+    });
+  }
+
+  void shareIntent() {
+    Share.share(
+      "Title: ${widget.hymns.title}\n\n${widget.hymns.lyric}\n\nShared from Sacred Songs & Solos",
+      subject: widget.hymns.title,
+    );
+  }
+
+  String lyricOptimiser(String lyric) {
+    if (lyric.isEmpty) return lyric;
+    if (lyric.trimLeft().startsWith('1')) {
+      return lyric;
+    } else {
+      return "1\n $lyric";
+    }
+  }
+
+  void audioSnackBuilder() {
+    String message =
+        "Tune ${globals.isPlaying ? 'Playing...' : (globals.isPaused ? 'Paused...' : 'Stopped...')}";
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), duration: const Duration(seconds: 1)),
+    );
+  }
+
+  void audioTabSnackBuilder() {
+    audioSnackBuilder();
+  }
+
+  void onCompletedSnackbar() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+          content: Text("Tune Completed"), duration: Duration(seconds: 1)),
+    );
+  }
+
+  void tabOnCompletedSnackbar() {
+    onCompletedSnackbar();
+  }
+
   @override
   Widget build(BuildContext context) {
-    favInit();
-    final Widget content = ListView(
-      children: <Widget>[
-        Center(
-          child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ListTile(
-                title: Text(
-                    widget.hymns.title
-                        .substring(widget.hymns.title.indexOf('-') + 1),
-                    textAlign: TextAlign.center,
-                    style: globals.titleStyle()),
-                subtitle: Text(
-                  '\n${widget.hymns.author}'
-                  "\n${widget.hymns.tune!.isNotEmpty ? widget.hymns.tune : ''}",
-                  textAlign: TextAlign.center,
-                  style: globals.subheadStyle(),
-                ),
-              )),
-        ),
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Text(
-              widget.hymns.lyric,
-              textAlign: TextAlign.center,
-              style: globals.lyricStyle(),
-            ),
-          ),
-        ),
-      ],
-    );
-
-    //content view for tablets
-    final Widget tabContent = ListView(
-      controller: _scrollController,
-      children: <Widget>[
-        Center(
-          child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: ListTile(
-                title: Text(
-                    widget.hymns.title
-                        .substring(widget.hymns.title.indexOf('-') + 1),
-                    textAlign: TextAlign.center,
-                    style: globals.titleStyle()),
-                subtitle: Text(
-                  "Hymn~"
-                  "${(widget.hymns.id)}"
-                  "\n${widget.hymns.author}"
-                  "\n${widget.hymns.tune!.isNotEmpty ? widget.hymns.tune : ''}",
-                  textAlign: TextAlign.center,
-                  style: globals.subheadStyle(),
-                ),
-              )),
-        ),
-        Center(
-          child: Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Text(widget.hymns.lyric,
-                textAlign: TextAlign.center, style: globals.lyricStyle()),
-          ),
-        ),
-      ],
-    );
-
-    if (widget.isInTabletLayout) {
-      return Scaffold(
-        key: tabViewScaffold,
-        body: Container(
-          color: globals.nightMode == false ? globals.bgColor : Colors.black45,
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                AnimatedOpacity(
-                  duration: const Duration(milliseconds: 1000),
-                  opacity: tuneIconVisibility ? 1.0 : 0.0,
-                  child: SizedBox(
-                      height: barHeight ?? 36.0,
-                      child: Card(
-                        margin: const EdgeInsets.all(0.0),
-                        elevation: 4.0,
-                        clipBehavior: Clip.none,
-                        color: Theme.of(context).colorScheme.tertiary,
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            IconButton(
-                                icon: Icon(
-                                  globals.tuneIcon,
-                                  color: Theme.of(context).cardColor,
-                                ),
-                                onPressed: () async {
-                                  if (globals.isPlaying) {
-                                    await pausePlayer();
-                                    audioTabSnackBuilder();
-                                  } else {
-                                    await globals.playSound();
-                                    setState(() {
-                                      globals.tuneIcon = globals.pause;
-                                      globals.playerState =
-                                          AudioPlayerState.PLAYING;
-                                    });
-                                    audioTabSnackBuilder();
-                                  }
-                                }),
-                            IconButton(
-                                icon: Icon(globals.stop,
-                                    color: Theme.of(context).cardColor),
-                                onPressed: () async {
-                                  await stopPlayer();
-                                  audioTabSnackBuilder();
-                                }),
-                          ],
-                        ),
-                      )),
-                ),
-                Flexible(
-                    child: NotificationListener<ScrollNotification>(
-                        onNotification: (status) {
-                          if (status is ScrollUpdateNotification) {
-                            if (status.scrollDelta! > 0) {
-//                                Future.delayed(Duration(seconds: 2), () {
-                              hideTabTuneBar(true);
-//                                });
-                            } else {
-//                                Future.delayed(Duration(seconds: 2), () {
-                              hideTabTuneBar(false);
-//                                });
-                            }
-                          }
-                          return false;
-                        },
-                        child: tabContent)),
-              ],
-            ),
-          ),
-        ),
-//        bottomNavigationBar: Container(
-//          height: widget.adPadding,
-//        ),
-        floatingActionButton: Visibility(
-          visible: widget.hymns.id == -1 ? false : true,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              Padding(
-                padding: const EdgeInsets.only(left: 14.0),
-                child: FloatingActionButton(
-                  onPressed: () {
-                    int index = _hymnList![widget.hymns.id - 1].id - 1;
-                    setState(() {
-                      if (favIcon == _off) {
-                        favIcon = _on;
-                        updateFavorite(index, 1);
-                      } else {
-                        favIcon = _off;
-                        updateFavorite(index, 0);
-                      }
-                    });
-                    tabSnackBuilder(context, index);
-                  },
-                  mini: true,
-                  heroTag: 'favBtn',
-                  child: Icon(favIcon),
-                ),
-              ),
-              FloatingActionButton(
-                onPressed: () => shareIntent(),
-                mini: true,
-                heroTag: 'shareBtn',
-                child: const Icon(Icons.share),
+    // If on tablet and no hymn selected yet (id <= 0)
+    if (widget.isInTabletLayout && widget.hymns.id <= 0) {
+      return Container(
+        color: globals.nightMode == false ? globals.bgColor : Colors.black45,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.library_books, size: 72, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              const Text(
+                "Select a hymn from the list to view lyrics",
+                style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
             ],
           ),
         ),
       );
     }
-    return Padding(
-      padding: EdgeInsets.zero,
-      child: Scaffold(
-        key: scaffoldState,
-        appBar: AppBar(
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () async {
-              await stopPlayer();
-              Future.delayed(const Duration(milliseconds: 1), () {
-                Navigator.of(context).pop();
-              });
-            },
-          ),
-          title: Text(widget.hymns.title),
-          actions: <Widget>[
-            IconButton(
-                icon: Icon(globals.tuneIcon),
-                onPressed: () async {
-                  if (globals.isPlaying) {
-                    await pausePlayer();
-                    audioSnackBuilder();
-                  } else {
-                    await globals.playSound();
-                    setState(() {
-                      globals.tuneIcon = globals.pause;
-                      globals.playerState = AudioPlayerState.PLAYING;
-                    });
-                    audioSnackBuilder();
-                  }
-                }),
-            IconButton(
-                icon: Icon(globals.stop),
-                onPressed: () async {
-                  await stopPlayer();
-                  audioSnackBuilder();
-                }),
-            IconButton(
-                icon: Icon(favIcon),
-                onPressed: () {
-                  int index = _hymnList![widget.hymns.id - 1].id - 1;
-                  setState(() {
-                    if (favIcon == _off) {
-                      favIcon = _on;
-                      updateFavorite(index, 1);
-                    } else {
-                      favIcon = _off;
-                      updateFavorite(index, 0);
-                    }
-                  });
-                  snackBuilder(index);
-                }),
-          ],
-        ),
-//      backgroundColor: Colors.deepPurpleAccent,
 
-        body: WillPopScope(
-          // ignore: missing_return
-          onWillPop: () async {
-            if (globals.playerState == AudioPlayerState.PLAYING) {
-              stopPlayer();
-              return false;
-            } else {
-              Navigator.of(context).pop();
-              return true;
-            }
-          },
-          child: Container(
-            color:
-                globals.nightMode == false ? globals.bgColor : Colors.black45,
-            // decoration: mainBoxStyle(),
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: content,
+    final Widget lyricsBody = ListView(
+      controller: _scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+      children: <Widget>[
+        Center(
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: ListTile(
+              title: Text(
+                widget.hymns.title,
+                textAlign: TextAlign.center,
+                style: globals.titleStyle(),
+              ),
+              subtitle: Text(
+                widget.hymns.isUserComposed
+                    ? "User Composed Hymn"
+                    : "Hymn ~ ${widget.hymns.id}${widget.hymns.author != null && widget.hymns.author!.isNotEmpty ? '\n${widget.hymns.author}' : ''}",
+                textAlign: TextAlign.center,
+                style: globals.subheadStyle(),
               ),
             ),
           ),
         ),
-//      bottomNavigationBar: Container(
-//        height: widget.adPadding,
-//      ),
-        floatingActionButton: FloatingActionButton(
-          onPressed: () => shareIntent(),
-          child: const Icon(Icons.share),
+        const Divider(height: 1),
+        const SizedBox(height: 12),
+        Center(
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+            child: Text(
+              lyricOptimiser(widget.hymns.lyric),
+              textAlign: TextAlign.center,
+              style: globals.lyricStyle(),
+            ),
+          ),
         ),
-      ),
+        const SizedBox(height: 60),
+      ],
     );
-  }
 
-  shareIntent() {
-    Share.share(
-        "Title:${widget.hymns.title}"
-        "\nAuthor:${widget.hymns.author}"
-        "\nTune:${widget.hymns.tune}"
-        "\n${widget.hymns.lyric}",
-        subject: widget.hymns.title);
-  }
+    return ListenableBuilder(
+      listenable: ReadingSettingsNotifier.instance,
+      builder: (context, _) {
+        if (widget.isInTabletLayout) {
+          return Scaffold(
+            body: Container(
+              color: globals.nightMode == false ? globals.bgColor : Colors.black45,
+              child: Column(
+                children: <Widget>[
+                  if (!widget.hymns.isUserComposed)
+                    AnimatedOpacity(
+                      duration: const Duration(milliseconds: 300),
+                      opacity: tuneIconVisibility ? 1.0 : 0.0,
+                      child: SizedBox(
+                        height: barHeight ?? 42.0,
+                        child: Card(
+                          margin: EdgeInsets.zero,
+                          elevation: 2.0,
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: <Widget>[
+                              IconButton(
+                                icon: Icon(globals.tuneIcon,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onPrimaryContainer),
+                                onPressed: () async {
+                                  await _handlePlayPressed(isTablet: true);
+                                },
+                              ),
+                              IconButton(
+                                icon: Icon(globals.stop,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onPrimaryContainer),
+                                onPressed: () async {
+                                  await stopPlayer();
+                                  audioTabSnackBuilder();
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  Expanded(child: lyricsBody),
+                ],
+              ),
+            ),
+            floatingActionButton: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: <Widget>[
+                FloatingActionButton.small(
+                  heroTag: 'favBtnTablet_${widget.hymns.id}',
+                  onPressed: toggleFavorite,
+                  child: Icon(favIcon,
+                      color: favIcon == _on ? Colors.redAccent : null),
+                ),
+                const SizedBox(width: 12),
+                FloatingActionButton.small(
+                  heroTag: 'shareBtnTablet_${widget.hymns.id}',
+                  onPressed: shareIntent,
+                  child: const Icon(Icons.share),
+                ),
+              ],
+            ),
+            bottomNavigationBar: const AnchoredAdaptiveAd(),
+          );
+        }
 
-  void snackBuilder(int index) {
-    // scaffoldState.currentState.showSnackBar(
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          "Hymn ${_hymnList![index].title.substring(0, 3)}${favIcon == _on ? ' added to favorites' : ' removed from favorites'}",
-        ),
-      ),
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(widget.hymns.title),
+            actions: <Widget>[
+              if (!widget.hymns.isUserComposed) ...[
+                IconButton(
+                  icon: Icon(globals.tuneIcon),
+                  onPressed: () async {
+                    await _handlePlayPressed(isTablet: false);
+                  },
+                ),
+                IconButton(
+                  icon: Icon(globals.stop),
+                  onPressed: () async {
+                    await stopPlayer();
+                    audioSnackBuilder();
+                  },
+                ),
+              ],
+              IconButton(
+                icon:
+                    Icon(favIcon, color: favIcon == _on ? Colors.redAccent : null),
+                onPressed: toggleFavorite,
+              ),
+            ],
+          ),
+          body: PopScope(
+            canPop: true,
+            onPopInvokedWithResult: (didPop, result) async {
+              if (globals.isPlaying) {
+                await stopPlayer();
+              }
+            },
+            child: Container(
+              color: globals.nightMode == false ? globals.bgColor : Colors.black45,
+              child: lyricsBody,
+            ),
+          ),
+          floatingActionButton: FloatingActionButton(
+            onPressed: shareIntent,
+            child: const Icon(Icons.share),
+          ),
+          bottomNavigationBar: const AnchoredAdaptiveAd(),
+        );
+      },
     );
-  }
-
-  void tabSnackBuilder(BuildContext context, int index) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(
-      "Hymn ${_hymnList![index].title.substring(0, 3)}${favIcon == _on ? ' added to favorites' : ' removed from favorites'}",
-    )));
-  }
-
-  void favInit() {
-    if (widget.hymns.id != -1 && _hymnList != null) {
-      int id = _hymnList![widget.hymns.id - 1].id - 1;
-      if (_hymnList![id].favorite == 1) {
-        favIcon = _on;
-      } else {
-        favIcon = _off;
-      }
-    }
-  }
-
-  Future stopPlayer() async {
-    await globals.player.stop();
-    setState(() {
-      globals.tuneIcon = globals.play;
-      globals.playerState = AudioPlayerState.STOPPED;
-    });
-  }
-
-  Future pausePlayer() async {
-    await globals.player.pause();
-    setState(() {
-      globals.tuneIcon = globals.play;
-      globals.playerState = AudioPlayerState.PAUSED;
-    });
-  }
-
-  void audioSnackBuilder() {
-    String popUp;
-    if (globals.playerState == AudioPlayerState.PLAYING) {
-      popUp = "Tune Playing";
-    } else if (globals.playerState == AudioPlayerState.STOPPED) {
-      popUp = "Tune Stopped";
-    } else {
-      popUp = "Tune Paused";
-    }
-    // scaffoldState.currentState.showSnackBar(
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          popUp,
-          textAlign: TextAlign.center,
-        ),
-        duration: const Duration(milliseconds: 500),
-        shape: BeveledRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-      ),
-    );
-  }
-
-  void audioTabSnackBuilder() {
-    String popUp;
-    if (globals.playerState == AudioPlayerState.PLAYING) {
-      popUp = "Tune Playing";
-    } else if (globals.playerState == AudioPlayerState.STOPPED) {
-      popUp = "Tune Stopped";
-    } else {
-      popUp = "Tune Paused";
-    }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(
-        popUp,
-        textAlign: TextAlign.center,
-      ),
-      duration: const Duration(milliseconds: 500),
-      shape: BeveledRectangleBorder(borderRadius: BorderRadius.circular(8.0)),
-    ));
-  }
-
-  void tabOnCompletedSnackbar() {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text(
-          "Tune Completed",
-          textAlign: TextAlign.center,
-        ),
-        duration: const Duration(milliseconds: 500),
-        shape:
-            BeveledRectangleBorder(borderRadius: BorderRadius.circular(8.0))));
-  }
-
-  void onCompletedSnackbar() {
-    // scaffoldState.currentState.showSnackBar(
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text(
-          "Tune Completed",
-          textAlign: TextAlign.center,
-        ),
-        duration: const Duration(milliseconds: 500),
-        shape:
-            BeveledRectangleBorder(borderRadius: BorderRadius.circular(8.0))));
-  }
-
-  void hideTabTuneBar(bool flag) {
-    setState(() {
-      if (flag == true) {
-        barHeight = 0.0;
-        tuneIconVisibility = false;
-      } else {
-        barHeight = 36.0;
-        tuneIconVisibility = true;
-      }
-    });
   }
 }
+

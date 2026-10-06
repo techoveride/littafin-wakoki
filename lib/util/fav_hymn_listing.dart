@@ -1,361 +1,276 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:audioplayer/audioplayer.dart';
-import 'package:draggable_scrollbar/draggable_scrollbar.dart';
+﻿import 'package:draggable_scrollbar/draggable_scrollbar.dart';
 import 'package:flutter/material.dart';
+import 'package:littafin_wakoki/model/db_helper.dart';
 import 'package:littafin_wakoki/model/globals.dart' as globals;
 import 'package:littafin_wakoki/model/hymn.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:littafin_wakoki/util/hymn_listing.dart';
+import '../state/hymns_notifier.dart';
 
-GlobalKey<_FavHymnListingState> favHymnGKey = GlobalKey();
+GlobalKey<FavHymnListingState> favHymnGKey = GlobalKey();
 
 class FavHymnListing extends StatefulWidget {
   final ValueChanged<Hymns>? hymnSelectedCallback;
   final Hymns? hymnSelected;
 
-  FavHymnListing({
+  const FavHymnListing({
     Key? key,
-    @required this.hymnSelectedCallback,
+    required this.hymnSelectedCallback,
     this.hymnSelected,
   }) : super(key: key);
 
   @override
-  _FavHymnListingState createState() => _FavHymnListingState();
+  FavHymnListingState createState() => FavHymnListingState();
 }
 
-class _FavHymnListingState extends State<FavHymnListing> {
-  late List<Hymns> _favHymnList;
-  late int hymnSize;
-
-  final GlobalKey<_FavHymnListingState> hymnListingKey =
-      GlobalKey<_FavHymnListingState>();
+class FavHymnListingState extends State<FavHymnListing> {
+  final DatabaseHelper _dbHelper = DatabaseHelper();
+  List<Hymns> _favHymnList = [];
+  bool _isLoading = true;
+  String _currentSort = 'number';
+  String _currentQuery = '';
 
   final ScrollController _scrollControl = ScrollController();
-
-  static const double _itemExtent = 58.0;
-
-  late List hymn;
-
-  IconData favIcon = Icons.favorite;
-
-  final IconData _off = Icons.flash_off;
-  final IconData _on = Icons.flash_on;
-
-  // Orientation orientation = Orientation.portrait;
-
-  onSearchedItem(String value) {
-    // print(value);
-    String search;
-    setState(() {
-      _favHymnList = listHymns.where((item) {
-        search =
-            "${item.title.trim().toLowerCase()} ${item.lyric.toLowerCase()}";
-        return search.contains(value.toLowerCase()) && item.favorite == 1;
-      }).toList();
-      hymnSize = _favHymnList.length;
-    });
-  }
-
-  sortByTitle() {
-    Comparator<Hymns> titleComparator =
-        (a, b) => (a.title.substring(4)).compareTo(b.title.substring(4));
-
-    setState(() {
-      _favHymnList =
-          List<Hymns>.from(hymn.map((i) => Hymns.fromJson(i))).where((val) {
-        return val.favorite == 1;
-      }).toList();
-      _favHymnList.sort(titleComparator);
-    });
-  }
-
-  sortByNumber() {
-    setState(() {
-      _favHymnList =
-          List<Hymns>.from(hymn.map((i) => Hymns.fromJson(i))).where((val) {
-        return val.favorite == 1;
-      }).toList();
-//      _hymnList.sort((a, b) => (a.id).compareTo(b.id));
-    });
-  }
-
-/*  refresh() {
-    setState(() {
-      _favHymnList =
-          List<Hymns>.from(hymn.map((i) => Hymns.fromJson(i))).where((val) {
-        return val.favorite == 1;
-      }).toList();
-      hymnSize = _favHymnList.length;
-    });
-  }*/
-
-  late File jsonFile;
-  late Directory dir;
-
-  // String fileName = "${globals.fileName}";
-  bool fileExists = false;
-
-  Future<List<Hymns>> getHymn() async {
-    jsonFile = await _localFile;
-    fileExists = jsonFile.existsSync();
-    if (fileExists) {
-      hymn = json.decode(jsonFile.readAsStringSync());
-      setState(() {
-        _favHymnList =
-            List<Hymns>.from(hymn.map((i) => Hymns.fromJson(i))).where((item) {
-          return item.favorite == 1;
-        }).toList();
-        hymnSize = _favHymnList.length;
-      });
-    }
-//    favInit();
-    return _favHymnList;
-  }
-
-  Future<String> get _localPath async {
-    final directory = await getApplicationDocumentsDirectory();
-    return directory.path;
-  }
-
-  Future<File> get _localFile async {
-    final path = await _localPath;
-    return File('$path/${globals.fileName}');
-  }
-
-  loadFav() async {
-    setState(() => _favHymnList = globals.defaultHymn.where((val) {
-          return val.favorite == 1;
-        }).toList());
-  }
+  static const double _itemExtent = 64.0;
 
   @override
   void initState() {
-    loadFav();
-    getHymn();
     super.initState();
+    HymnsNotifier.instance.addListener(_onHymnsChanged);
+    loadFavorites();
   }
 
-  onSearchExit(String value) {
-    setState(() {
-      _favHymnList = listHymns.where((item) {
-        return item.favorite == 1;
-      }).toList();
-      hymnSize = _favHymnList.length;
-    });
+  @override
+  void dispose() {
+    HymnsNotifier.instance.removeListener(_onHymnsChanged);
+    _scrollControl.dispose();
+    super.dispose();
+  }
+
+  void _onHymnsChanged() {
+    if (mounted) {
+      refreshList();
+    }
+  }
+
+  Future<void> loadFavorites() async {
+    setState(() => _isLoading = true);
+    final favs = await _dbHelper.getHymnsList(
+      favoritesOnly: true,
+      sortBy: _currentSort,
+    );
+    if (mounted) {
+      setState(() {
+        _favHymnList = favs;
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> refreshList() async {
+    if (_currentQuery.isNotEmpty) {
+      onSearchedItem(_currentQuery);
+    } else {
+      await loadFavorites();
+    }
+  }
+
+  void onSearchedItem(String value) async {
+    _currentQuery = value.trim();
+    if (_currentQuery.isEmpty) {
+      await loadFavorites();
+      return;
+    }
+
+    final results =
+        await _dbHelper.searchHymns(_currentQuery, favoritesOnly: true);
+    if (mounted) {
+      setState(() {
+        _favHymnList = results;
+      });
+    }
+  }
+
+  void onSearchExit(String value) {
+    _currentQuery = '';
+    loadFavorites();
+  }
+
+  void sortByTitle() async {
+    _currentSort = 'title';
+    if (_currentQuery.isNotEmpty) {
+      setState(() {
+        _favHymnList.sort(
+            (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+      });
+    } else {
+      await loadFavorites();
+    }
+  }
+
+  void sortByNumber() async {
+    _currentSort = 'number';
+    if (_currentQuery.isNotEmpty) {
+      setState(() {
+        _favHymnList.sort((a, b) => a.id.compareTo(b.id));
+      });
+    } else {
+      await loadFavorites();
+    }
+  }
+
+  void removeFavorite(Hymns hymn) async {
+    await _dbHelper.setFavorite(hymn.id, false);
+    await refreshList();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("${hymn.title} removed from favorites"),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  String titleCase(String title) {
+    if (title.isEmpty) return title;
+    return title.split(' ').map((word) {
+      if (word.isEmpty) return word;
+      if (word.length == 1) return word.toUpperCase();
+      return word[0].toUpperCase() + word.substring(1);
+    }).join(' ');
   }
 
   @override
   Widget build(BuildContext context) {
-    // orientation = MediaQuery.of(context).orientation;
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator.adaptive());
+    }
 
-    return hymnFavList();
-  }
-
-  Widget hymnFavList() {
-    return Padding(
-        padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
-        child: DraggableScrollbar.arrows(
-            alwaysVisibleScrollThumb: true,
-            backgroundColor: Theme.of(context).colorScheme.secondary,
-            padding: const EdgeInsets.only(right: 4.0),
-            labelTextBuilder: (double offset) => Text(
-                "${(offset ~/ _itemExtent) + 1}",
-                style: const TextStyle(color: Colors.white)),
-            controller: _scrollControl,
-            child: _favHymnList.isNotEmpty
-                ? ListView.builder(
-                    controller: _scrollControl,
-                    itemCount: _favHymnList.length,
-                    itemBuilder: (_, index) {
-                      return Card(
-                        elevation: 4.5,
-                        margin: const EdgeInsets.only(
-                            bottom: 3.0, right: 4.0, left: 4.0),
-                        child: ListTile(
-                            leading: Text(
-                              _favHymnList[index].title.substring(
-                                  0, _favHymnList[index].title.indexOf('-')),
-                              style: TextStyle(
-                                  fontWeight: FontWeight.w500,
-                                  fontSize: 18.0,
-                                  color:
-                                      Theme.of(context).colorScheme.secondary),
-                            ),
-                            trailing: IconButton(
-                                icon: Icon(favIcon),
-                                onPressed: () {
-                                  int row = _favHymnList[index].id - 1;
-                                  updateFavorite(row);
-                                  snackBuilder(index);
-                                }),
-                            title: Text(
-                              _favHymnList[index].title.substring(
-                                  _favHymnList[index].title.indexOf('-') + 1),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              softWrap: true,
-                            ),
-                            selected:
-                                widget.hymnSelected == _favHymnList[index],
-                            onTap: () async {
-                              widget.hymnSelectedCallback!(
-                                _favHymnList[index],
-                              );
-                              if (globals.isPlaying) {
-                                setState(() {
-                                  globals.tuneIcon = globals.play;
-                                  globals.playerState =
-                                      AudioPlayerState.STOPPED;
-                                });
-                                await globals.player.stop();
-                              }
-                              globals.load(_favHymnList[index].title);
-                            }),
-                      );
-                    },
-                  )
-                : ListView(
-                    children: const <Widget>[
-                      Card(
-                        elevation: 4.5,
-                        margin:
-                            EdgeInsets.only(bottom: 3.0, right: 4.0, left: 4.0),
-                        child: ListTile(
-                          title: Text("Favorite Hymn Not found"),
-                          subtitle: Text(
-                              "Add a Hymn by clicking on the favorite icon!"),
-                        ),
-                      )
-                    ],
-                  )));
-  }
-
-  /* Widget hymnFavList() {
-    if (hymnSize != null)
-      return ListView(
-        children: _favHymnList.map((hymn) {
-          return Card(
-            elevation: 4.5,
-            margin: EdgeInsets.only(bottom: 3.0, right: 4.0, left: 4.0),
-            child: ListTile(
-              title: Text(hymn.title),
-              selected: widget.hymnSelected == hymn,
-              onTap: () => widget.hymnSelectedCallback(hymn),
-            ),
-          );
-        }).toList(),
+    if (_favHymnList.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.favorite_border, size: 72, color: Colors.grey[400]),
+              const SizedBox(height: 16),
+              Text(
+                _currentQuery.isNotEmpty
+                    ? "No favorites found matching '$_currentQuery'"
+                    : "No favorite hymns yet.\nTap the heart icon on any hymn to add it here!",
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 16, color: Colors.grey, height: 1.4),
+              ),
+            ],
+          ),
+        ),
       );
-    else {
-      return Container();
     }
-  }*/
 
-//  Widget hymnList() {
-//    return ListView(
-//      children: listHymns.map((hymn) {
-//        return Container(
-//          child: ListTile(
-//            title: Text(hymn.setup),
-//            selected: widget.hymnSelected == hymn,
-//            onTap: () => widget.hymnSelectedCallback(hymn),
-//          ),
-//          decoration: BoxDecoration(
-//              shape: BoxShape.rectangle,
-//              color: Colors.blue[50],
-//              borderRadius: BorderRadius.circular(5.0)),
-//        );
-//      }).toList(),
-//    );
-//  }
-  /* Widget hymnFavList() {
     return Padding(
-        padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
-        child: FutureBuilder(
-          future: getHymn(),
-          builder: (BuildContext buildContext, AsyncSnapshot snapshot) {
-            if (snapshot.hasData) {
-              return ListView.builder(
-                  itemCount: hymnSize,
-                  itemBuilder: (_, index) {
-                    return Card(
-                      elevation: 4.5,
-                      margin:
-                          EdgeInsets.only(bottom: 3.0, right: 4.0, left: 4.0),
-                      child: ListTile(
-                        title: Text(
-                          "${_favHymnList[index].title}",
-                        ),
-                        selected: widget.hymnSelected == _favHymnList[index],
-                        onTap: () =>
-                            widget.hymnSelectedCallback(_favHymnList[index]),
-                      ),
-                    );
-                  });
-            } else {
-              return ListView(
-                children: <Widget>[
-                  Card(
-                    elevation: 4.5,
-                    margin: EdgeInsets.only(bottom: 3.0, right: 4.0, left: 4.0),
-                    child: ListTile(
-                      title: Text("Hymn Not found"),
-                      subtitle: Text("Please add a Hymn to favorite!"),
-                      onTap: () {},
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: DraggableScrollbar.arrows(
+        alwaysVisibleScrollThumb: true,
+        backgroundColor: Theme.of(context).colorScheme.secondary,
+        padding: const EdgeInsets.only(right: 4.0),
+        labelTextBuilder: (double offset) => Text(
+          "${(offset ~/ _itemExtent) + 1}",
+          style: const TextStyle(color: Colors.white),
+        ),
+        controller: _scrollControl,
+        child: ListView.builder(
+          controller: _scrollControl,
+          itemCount: _favHymnList.length,
+          itemExtent: _itemExtent,
+          itemBuilder: (_, index) {
+            final hymn = _favHymnList[index];
+            final bool isSelected = widget.hymnSelected?.id == hymn.id;
+
+            return Card(
+              elevation: isSelected ? 6.0 : 3.0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8.0),
+                side: isSelected
+                    ? BorderSide(
+                        color: Theme.of(context).colorScheme.secondary,
+                        width: 2.0,
+                      )
+                    : BorderSide.none,
+              ),
+              color: isSelected
+                  ? Theme.of(context)
+                      .colorScheme
+                      .secondary
+                      .withValues(alpha: 0.12)
+                  : null,
+              margin:
+                  const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.5),
+              child: ListTile(
+                dense: true,
+                leading: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8.0, vertical: 4.0),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Theme.of(context).colorScheme.secondary
+                        : Theme.of(context)
+                            .colorScheme
+                            .secondary
+                            .withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6.0),
+                  ),
+                  child: Text(
+                    hymn.isUserComposed ? "CUSTOM" : indexOptimiser(hymn.id),
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: hymn.isUserComposed ? 11.0 : 15.0,
+                      color: isSelected
+                          ? Colors.white
+                          : Theme.of(context).colorScheme.secondary,
                     ),
-                  )
-                ],
-              );
-            }
+                  ),
+                ),
+                title: Text(
+                  titleCase(hymn.title.trim()),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    fontSize: 15.0,
+                  ),
+                ),
+                subtitle: hymn.author != null && hymn.author!.isNotEmpty
+                    ? Text(
+                        hymn.author!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12),
+                      )
+                    : null,
+                trailing: IconButton(
+                  icon: const Icon(Icons.favorite, color: Colors.redAccent),
+                  tooltip: "Remove from favorites",
+                  onPressed: () => removeFavorite(hymn),
+                ),
+                selected: isSelected,
+                onTap: () async {
+                  widget.hymnSelectedCallback?.call(hymn);
+                  if (globals.isPlaying) await globals.player.stop();
+                  if (!hymn.isUserComposed) {
+                    globals.load(
+                      hymn.id.toString(),
+                      tuneSource: hymn.tune,
+                      hymnId: hymn.id,
+                    );
+                  }
+                },
+              ),
+            );
           },
-        ));
-  }*/
-  Future<File> _writeData(String message) async {
-    final file = await getApplicationDocumentsDirectory().then((dir) {
-      return File("${dir.path}/${globals.fileName}");
-    });
-    return file.writeAsString(message);
-  }
-
-  void updateFavorite(int index) async {
-    jsonFile = await _localFile;
-    fileExists = jsonFile.existsSync();
-    if (fileExists) {
-      var temp = json.decode(jsonFile.readAsStringSync());
-
-      var tempHymn =
-          List<Hymns>.from(temp.map((i) => Hymns.fromJson(i))).toList();
-      const int flag = 0;
-      tempHymn[index].favorite = flag;
-      _writeData(json.encode(tempHymn));
-      setState(() {
-        _favHymnList = tempHymn.where((val) {
-          return val.favorite == 1;
-        }).toList();
-      });
-      //Show Snackbar
-      // if (orientation == Orientation.portrait) {
-      //   snackBuilder(index);
-      // } else {
-      //   tabSnackBuilder(index);
-      // }
-    }
-  }
-
-  void snackBuilder(int index) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          "Hymn ${_favHymnList[index].title.substring(0, 3)}${' removed from favorites'}",
         ),
       ),
     );
   }
-
-// void tabSnackBuilder(int index) {
-//   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-//       content: Text(
-//     "Hymn ${_favHymnList[index].title.substring(0, 3)}${favIcon == _on ? ' added to favorites' : ' removed from favorites'}",
-//   )));
-// }
 }
