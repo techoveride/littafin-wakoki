@@ -1,0 +1,41 @@
+{
+  "project_info": {
+    "project_number": "944467351203",
+    "firebase_url": "https://littafin-wakoki-hausa-hy-35a60.firebaseio.com",
+    "project_id": "littafin-wakoki-hausa-hy-35a60",
+    "storage_bucket": "littafin-wakoki-hausa-hy-35a60.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:944467351203:android:9b70d1c09b8f8418ca1116",
+        "android_client_info": {
+          "package_name": "com.hymnestry.littafin_wakoki"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "944467351203-8mo55j55lfhh0310ch36gpa11c3ev14n.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD7HAQ7z3TLE6o7Gnir2gWS3eppisi_cbQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "944467351203-8mo55j55lfhh0310ch36gpa11c3ev14n.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      },
+      "admob_app_id": "ca-app-pub-2165165254805026~1286023402"
+    }
+  ],
+  "configuration_version": "1"
+}
