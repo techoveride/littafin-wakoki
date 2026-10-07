@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/cupertino.dart';
@@ -40,13 +40,13 @@ String app_version = "";
 String more_apps = 'https://play.google.com/store/apps/dev?id=8322602405382603508';
 String share_app = 'https://hymnestry.techoveride.com/';
 String APP_STORE_URL =
-    'https://phobos.apple.com/WebObjects/MZStore.woa/wa/viewSoftwareUpdate?id=com.hymnestry.littafin_wakoki&mt=8';
+    'https://phobos.apple.com/WebObjects/MZStore.woa/wa/viewSoftwareUpdate?id=com.hymnestry.littafinwakoki&mt=8';
 String PLAY_STORE_URL =
-    'https://play.google.com/store/apps/details?id=com.hymnestry.littafin_wakoki';
+    'https://play.google.com/store/apps/details?id=com.hymnestry.littafinwakoki';
 String PREMIUM_APP_STORE_URL =
     'https://phobos.apple.com/WebObjects/MZStore.woa/wa/viewSoftwareUpdate?id=com.hymnestry.littafin_wakoki_pro&mt=8';
 String PREMIUM_PLAY_STORE_URL =
-    'https://play.google.com/store/apps/details?id=com.hymnestry.littafin_wakoki_pro';
+    'https://play.google.com/store/apps/details?id=com.hymnestry.littafinwakoki_pro';
 String PRIVACY_POLICY_URL = 'https://hymnestry.techoveride.com/privacy-policy/';
 String TERMS_OF_USE_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 

@@ -1,4 +1,4 @@
-﻿{
+{
   "project_info": {
     "project_number": "944467351203",
     "firebase_url": "https://littafin-wakoki-hausa-hy-35a60.firebaseio.com",
@@ -10,7 +10,7 @@
       "client_info": {
         "mobilesdk_app_id": "1:944467351203:android:9b70d1c09b8f8418ca1116",
         "android_client_info": {
-          "package_name": "com.hymnestry.littafin_wakoki"
+          "package_name": "com.hymnestry.littafinwakoki"
         }
       },
       "oauth_client": [
