@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_core/firebase_core.dart';
@@ -12,6 +12,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'ads/applifecyclereactor.dart';
 import 'ads/appopenadmanager.dart';
+import 'firebase_options.dart';
 import 'model/db_helper.dart';
 import 'service/hymn_sync_service.dart';
 import 'state/hymns_notifier.dart';
@@ -40,7 +41,9 @@ void main() async {
       kIsWeb || (Platform.isAndroid || Platform.isIOS || Platform.isMacOS);
   if (isFirebaseConfigured) {
     try {
-      await Firebase.initializeApp();
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
     } catch (e) {
       debugPrint("Firebase not initialized: $e");
     }

@@ -1,5 +1,1 @@
-{
-  "remoteconfig": {
-    "template": "remoteconfig.template.json"
-  }
-}
+{"remoteconfig":{"template":"remoteconfig.template.json"},"flutter":{"platforms":{"android":{"default":{"projectId":"littafin-wakoki","appId":"1:522403582435:android:d18830fbc3c2945dbe50d6","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"littafin-wakoki","configurations":{"android":"1:522403582435:android:d18830fbc3c2945dbe50d6","ios":"1:522403582435:ios:ee7353883394deb2be50d6","macos":"1:522403582435:ios:ee7353883394deb2be50d6","web":"1:522403582435:web:219fe8379ae238bebe50d6","windows":"1:522403582435:web:09968306639b9202be50d6"}}}}}}
