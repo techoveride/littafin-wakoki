@@ -151,11 +151,19 @@ class DatabaseHelper {
     }
   }
 
-  /// Checks and repairs any existing database rows that contain mojibake characters
+  /// Checks and repairs any existing database rows that contain mojibake characters.
+  /// Matches only byte sequences produced by mis-decoded UTF-8 (ƙ/Ƙ/Ɗ/Ɓ -> "Æ…",
+  /// ɗ -> "É—", ɓ -> "É“", curly punctuation -> "â€…"), so legitimate accented
+  /// text such as the French "É" in the national anthem does not trigger a refresh.
   Future<void> checkAndFixMojibake(Database db) async {
+    const patterns = ['%Æ%', '%É—%', '%É“%', '%â€%'];
+    final conditions = patterns
+        .map((_) => "$colTitle LIKE ? OR $colLyrics LIKE ?")
+        .join(' OR ');
     try {
       final test = await db.rawQuery(
-        "SELECT $colId FROM $tableHymns WHERE $colIsCustom = 0 AND ($colTitle LIKE '%Æ%' OR $colLyrics LIKE '%Æ%' OR $colTitle LIKE '%É%' OR $colLyrics LIKE '%É%') LIMIT 1"
+        "SELECT $colId FROM $tableHymns WHERE $colIsCustom = 0 AND ($conditions) LIMIT 1",
+        [for (final p in patterns) ...[p, p]],
       );
       if (test.isNotEmpty) {
         debugPrint("Detected mojibake text in SQLite. Auto-repairing hymns to UTF-8...");

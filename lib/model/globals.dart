@@ -35,8 +35,9 @@ bool isLoaded = false;
 // Remote config variables
 String app_update = "";
 String app_version = "";
-String more_apps = 'https://play.google.com/store/apps/dev?id=8322602405382603508';
-String share_app = 'https://hymnestry.techoveride.com/';
+String more_apps =
+    'https://play.google.com/store/apps/dev?id=8322602405382603508';
+String share_app = 'https://hymnestry.techoveridehub.com/';
 String APP_STORE_URL =
     'https://phobos.apple.com/WebObjects/MZStore.woa/wa/viewSoftwareUpdate?id=com.hymnestry.littafinwakoki&mt=8';
 String PLAY_STORE_URL =
@@ -45,8 +46,10 @@ String PREMIUM_APP_STORE_URL =
     'https://phobos.apple.com/WebObjects/MZStore.woa/wa/viewSoftwareUpdate?id=com.hymnestry.littafin_wakoki_pro&mt=8';
 String PREMIUM_PLAY_STORE_URL =
     'https://play.google.com/store/apps/details?id=com.hymnestry.littafinwakoki_pro';
-String PRIVACY_POLICY_URL = 'https://hymnestry.techoveride.com/privacy-policy/';
-String TERMS_OF_USE_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
+String PRIVACY_POLICY_URL =
+    'https://hymnestry.techoveridehub.com/privacy-policy/';
+String TERMS_OF_USE_URL =
+    'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 
 late List<Hymns> defaultHymn;
 const fileName = "HymnLyricsHausa_v1.json";
@@ -187,7 +190,8 @@ ThemeData getActiveTheme() {
   return found.themeData;
 }
 
-final ValueNotifier<ThemeData> appThemeNotifier = ValueNotifier(getActiveTheme());
+final ValueNotifier<ThemeData> appThemeNotifier =
+    ValueNotifier(getActiveTheme());
 
 Future<void> setAppTheme(String key) => setThemeKey(key);
 
@@ -313,7 +317,9 @@ Future<void> load(String song, {String? tuneSource, int? hymnId}) async {
   }
 }
 
-Future<void> playSound({VoidCallback? onStreamingStarted, Function(String message)? onOfflineNotification}) async {
+Future<void> playSound(
+    {VoidCallback? onStreamingStarted,
+    Function(String message)? onOfflineNotification}) async {
   if (mp3Uri.isEmpty) return;
   if (isRemoteTune && !isTuneCached) {
     await player.play(UrlSource(mp3Uri));

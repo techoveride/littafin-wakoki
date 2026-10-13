@@ -11,6 +11,7 @@ import 'package:littafin_wakoki/util/fav_hymn_listing.dart';
 import 'package:littafin_wakoki/util/hymn_listing.dart';
 import 'package:littafin_wakoki/util/my_drawer.dart';
 import 'package:in_app_update/in_app_update.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -18,6 +19,7 @@ import '../ads/anchored_adaptive_ad.dart';
 import '../service/hymn_sync_service.dart';
 import 'app_dialog.dart';
 import 'hymn_details.dart';
+import 'version_utils.dart';
 
 // You can also test with your own ad unit IDs by registering your device as a
 // test device. Check the logs for your device's ID value.
@@ -599,10 +601,9 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
   // }
 
   void versionCheck() async {
-    // Current installed version of app (matches pubspec.yaml version)
-    const String currentVersionStr = "1.0.0";
+    // Current installed version of app (read from the build, i.e. pubspec.yaml version)
+    final String currentVersionStr = (await PackageInfo.fromPlatform()).version;
     globals.app_version = currentVersionStr; // store with dots for display
-    double currentVersion = double.tryParse(currentVersionStr.replaceAll(".", "")) ?? 100.0;
     // Get Latest version info from firebase config
     final FirebaseRemoteConfig remoteConfig = FirebaseRemoteConfig.instance;
     try {
@@ -622,12 +623,9 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
       if (moreApps.isNotEmpty) globals.more_apps = moreApps;
       globals.app_update = remoteVersion;
 
-      if (remoteVersion.isNotEmpty) {
-        double? newVersion =
-            double.tryParse(remoteVersion.trim().replaceAll(".", ""));
-        if (newVersion != null && newVersion > currentVersion) {
-          _showVersionDialog();
-        }
+      if (remoteVersion.isNotEmpty &&
+          isNewerVersion(remoteVersion, currentVersionStr)) {
+        _showVersionDialog();
       }
 
       // Automatically sync latest hymn catalog if a newer version is present

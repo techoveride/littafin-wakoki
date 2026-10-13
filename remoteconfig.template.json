@@ -9,14 +9,14 @@
     },
     "wakoki_updates_url": {
       "defaultValue": {
-        "value": "https://yourdomain.com/wakoki_updates.json"
+        "value": "https://hymnestry.techoveridehub.com/wakoki_updates.json"
       },
       "description": "Public HTTPS direct link to your exported wakoki_updates.json",
       "valueType": "STRING"
     },
     "app_version": {
       "defaultValue": {
-        "value": "1.2.1"
+        "value": "1.0.3"
       },
       "description": "Latest release version of Littafin Wakoki app for update prompts",
       "valueType": "STRING"

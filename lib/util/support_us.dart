@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
-import 'package:littafin_wakoki/model/webview.dart';
 import 'package:share_plus/share_plus.dart';
 
 class SupportUs extends StatelessWidget {
   const SupportUs({super.key});
-
-  static const String flutterWaveGateWay = "https://flutterwave.com/pay/yakubububamagc";
-  static const String payPalGateWay = "https://www.paypal.com/myaccount/transfer/homepage";
 
   @override
   Widget build(BuildContext context) {
@@ -53,7 +49,9 @@ class SupportUs extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
                       fontStyle: FontStyle.italic,
-                      color: colorScheme.primary,
+                      color: theme.brightness == Brightness.dark
+                          ? Colors.white
+                          : theme.primaryColor,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -93,45 +91,7 @@ class SupportUs extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // 2. Financial Donation (Flutterwave)
-          _buildActionCard(
-            context: context,
-            icon: Icons.credit_card_outlined,
-            iconColor: Colors.orange[800]!,
-            title: "Donate via Flutterwave",
-            description: "Support server maintenance, database updates, and continuous app development. Supports debit cards, bank transfers, and mobile money.",
-            buttonLabel: "Donate with Flutterwave",
-            buttonIcon: Icons.open_in_new,
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const PaymentWebView(url: flutterWaveGateWay),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-
-          // 3. PayPal Donation
-          _buildActionCard(
-            context: context,
-            icon: Icons.account_balance_wallet_outlined,
-            iconColor: Colors.blue[800]!,
-            title: "Donate via PayPal",
-            description: "For international supporters and partners who prefer donating securely through PayPal.",
-            buttonLabel: "Donate with PayPal",
-            buttonIcon: Icons.payment,
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const PaymentWebView(url: payPalGateWay),
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-
-          // 4. Church Custom App Requests
+          // 2. Church Custom App Requests
           _buildActionCard(
             context: context,
             icon: Icons.church_outlined,
@@ -144,7 +104,7 @@ class SupportUs extends StatelessWidget {
           ),
           const SizedBox(height: 12),
 
-          // 5. Share with Friends & Fellowship
+          // 3. Share with Friends & Fellowship
           _buildActionCard(
             context: context,
             icon: Icons.share_rounded,

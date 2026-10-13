@@ -20,6 +20,7 @@ import 'hymn_listing.dart';
 import '../state/hymns_notifier.dart';
 import '../state/purchase_notifier.dart';
 import 'pro_upgrade_dialog.dart';
+import 'version_utils.dart';
 
 class MyDrawer extends StatefulWidget {
   final bool? isTabletLayout;
@@ -393,14 +394,7 @@ class _MyDrawerState extends State<MyDrawer> {
       debugPrint(globals.app_update);
       updateDialog(context);
     } else {
-      //Get Current installed version of app
-      double defaultVersion =
-          double.parse(globals.app_version.trim().replaceAll(".", ""));
-//      print("default :$defaultVersion");
-      double newVersion =
-          double.parse(globals.app_update.trim().replaceAll(".", ""));
-//      print(newVersion);
-      if (newVersion > defaultVersion) {
+      if (isNewerVersion(globals.app_update, globals.app_version)) {
         _showVersionDialog(context);
       } else {
         _showVersionUpdatedDialog(context);

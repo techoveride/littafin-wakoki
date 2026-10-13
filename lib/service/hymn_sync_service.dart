@@ -33,7 +33,7 @@ class HymnSyncService {
   static const String rcLegacyUpdatesUrlKey = "hymn_updates_url";
 
   // Default fallback URL if Remote Config key is empty (empty by default for security)
-  static const String fallbackSyncEndpoint = "";
+  static const String fallbackSyncEndpoint = "https://hymnestry.techoveridehub.com/wakoki_updates.json";
 
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
