@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
@@ -36,7 +36,7 @@ class PurchaseNotifier extends ChangeNotifier {
   ProductDetails? get proProduct => _proProduct;
   String? get errorMessage => _errorMessage;
 
-  /// Human-friendly localized price (e.g. "$2.99" or "â‚¦2,500"), with a fallback if offline.
+  /// Human-friendly localized price (e.g. "$2.99" or "₦2,500"), with a fallback if offline.
   String get formattedPrice => _proProduct?.price ?? "Check Store";
 
   /// Initializes the store connection, restores cached pro status, and queries products.

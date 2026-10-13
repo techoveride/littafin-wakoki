@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
 
 class HelpMe extends StatelessWidget {
@@ -47,7 +47,7 @@ class HelpMe extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          "Learn how to get the most out of your Sacred Songs & Solos app.",
+                          "Learn how to get the most out of your Littafin Wa\u0199o\u0199i app.",
                           style: theme.textTheme.bodySmall?.copyWith(height: 1.3),
                         ),
                       ],
@@ -76,10 +76,10 @@ class HelpMe extends StatelessWidget {
             iconColor: Colors.deepPurple,
             title: "Playing Audio Tunes",
             summary: "Play, pause, and stop hymn melodies.",
-            details: "â€¢ Tap the Play icon at the top of any hymn screen to play the tune.\n"
-                "â€¢ A dedicated audio control bar displays playback status.\n"
-                "â€¢ On tablets, playback controls are always accessible at the top of the lyrics pane.\n"
-                "â€¢ Tunes stop automatically when leaving the screen or receiving a phone call.",
+            details: "\u2022 Tap the Play icon at the top of any hymn screen to play the tune.\n"
+                "\u2022 A dedicated audio control bar displays playback status.\n"
+                "\u2022 On tablets, playback controls are always accessible at the top of the lyrics pane.\n"
+                "\u2022 Tunes stop automatically when leaving the screen or receiving a phone call.",
           ),
 
           _buildHelpCard(
@@ -88,10 +88,10 @@ class HelpMe extends StatelessWidget {
             iconColor: Colors.blueAccent,
             title: "Searching & Sorting",
             summary: "Find hymns by number, title, author, or lyrics.",
-            details: "â€¢ Tap the Search icon in the top bar to open the live search box.\n"
-                "â€¢ Enter a number (e.g., '120') or words from any stanza or chorus.\n"
-                "â€¢ Tap the 3-dots menu icon on the top right to sort hymns by Number (1 to 1200) or Title (A to Z).\n"
-                "â€¢ Drag the fast scrollbar on the right side for rapid scrolling.",
+            details: "\u2022 Tap the Search icon in the top bar to open the live search box.\n"
+                "\u2022 Enter a number (e.g., '120') or words from any stanza or chorus.\n"
+                "\u2022 Tap the 3-dots menu icon on the top right to sort hymns by Number (1 to 1200) or Title (A to Z).\n"
+                "\u2022 Drag the fast scrollbar on the right side for rapid scrolling.",
           ),
 
           _buildHelpCard(
@@ -100,9 +100,9 @@ class HelpMe extends StatelessWidget {
             iconColor: Colors.redAccent,
             title: "Bookmarking Favorites",
             summary: "Save your favorite hymns for quick access.",
-            details: "â€¢ While reading any hymn, tap the Heart icon on the action bar to add it to your favorites.\n"
-                "â€¢ Tap the 'Favorite' tab on the main screen to browse all bookmarked songs.\n"
-                "â€¢ To remove a favorite, tap the Heart icon again. Your list updates instantly across both tabs.",
+            details: "\u2022 While reading any hymn, tap the Heart icon on the action bar to add it to your favorites.\n"
+                "\u2022 Tap the 'Favorite' tab on the main screen to browse all bookmarked songs.\n"
+                "\u2022 To remove a favorite, tap the Heart icon again. Your list updates instantly across both tabs.",
           ),
 
           _buildHelpCard(
@@ -111,10 +111,10 @@ class HelpMe extends StatelessWidget {
             iconColor: Colors.green,
             title: "Composing Custom Songs",
             summary: "Add your own church or choir hymns.",
-            details: "â€¢ Open the Navigation Drawer (swipe from left or tap menu).\n"
-                "â€¢ Select 'Compose Song' to write a new hymn with title, author, tune, and lyrics.\n"
-                "â€¢ View, edit, or delete your songs anytime under 'My added song(s)'.\n"
-                "â€¢ Composed songs appear with a distinct badge in your main hymn list.",
+            details: "\u2022 Open the Navigation Drawer (swipe from left or tap menu).\n"
+                "\u2022 Select 'Compose Song' to write a new hymn with title, author, tune, and lyrics.\n"
+                "\u2022 View, edit, or delete your songs anytime under 'My added song(s)'.\n"
+                "\u2022 Composed songs appear with a distinct badge in your main hymn list.",
           ),
 
           _buildHelpCard(
@@ -123,12 +123,12 @@ class HelpMe extends StatelessWidget {
             iconColor: Colors.orange,
             title: "Customizing Text & Themes",
             summary: "Adjust font size, colors, and dark mode.",
-            details: "â€¢ Open Drawer > Settings.\n"
-                "â€¢ Font Size: Choose sizes from 14pt to 36pt for comfortable reading.\n"
-                "â€¢ Line Spacing: Adjust spacing between lyric lines.\n"
-                "â€¢ Colors: Pick custom text and background colors for daytime worship.\n"
-                "â€¢ Night Mode: Toggle dark mode in the drawer for low-light church services.\n"
-                "â€¢ Themes: Choose from 6 curated Material 3 color themes.",
+            details: "\u2022 Open Drawer > Settings.\n"
+                "\u2022 Font Size: Choose sizes from 14pt to 36pt for comfortable reading.\n"
+                "\u2022 Line Spacing: Adjust spacing between lyric lines.\n"
+                "\u2022 Colors: Pick custom text and background colors for daytime worship.\n"
+                "\u2022 Night Mode: Toggle dark mode in the drawer for low-light church services.\n"
+                "\u2022 Themes: Choose from 6 curated Material 3 color themes.",
           ),
 
           _buildHelpCard(
@@ -137,8 +137,8 @@ class HelpMe extends StatelessWidget {
             iconColor: Colors.teal,
             title: "Keep Screen Awake",
             summary: "Prevent display from sleeping while singing.",
-            details: "â€¢ In Settings, toggle 'Keep Screen Awake'.\n"
-                "â€¢ When active, your device will not dim or lock while reading hymnsâ€”ideal for song leaders, choir singers, and organists.",
+            details: "\u2022 In Settings, toggle 'Keep Screen Awake'.\n"
+                "\u2022 When active, your device will not dim or lock while reading hymns\u2014ideal for song leaders, choir singers, and organists.",
           ),
 
           _buildHelpCard(
@@ -147,9 +147,9 @@ class HelpMe extends StatelessWidget {
             iconColor: Colors.indigo,
             title: "Cloud Hymn Updates",
             summary: "Fetch corrections and new hymns automatically.",
-            details: "â€¢ The app automatically checks for cloud updates in the background.\n"
-                "â€¢ You can also manually tap 'Check for Hymn Updates' in the drawer.\n"
-                "â€¢ Cloud updates never overwrite or erase your saved favorites or custom hymns.",
+            details: "\u2022 The app automatically checks for cloud updates in the background.\n"
+                "\u2022 You can also manually tap 'Check for Hymn Updates' in the drawer.\n"
+                "\u2022 Cloud updates never overwrite or erase your saved favorites or custom hymns.",
           ),
 
           const SizedBox(height: 20),
@@ -248,7 +248,7 @@ class HelpMe extends StatelessWidget {
   static Future<void> _contactSupport() async {
     final Email email = Email(
       body: 'Hi Hymnestry Support!\n\nI need help with:\n',
-      subject: 'Help Request - Sacred Songs & Solos',
+      subject: 'Help Request - Littafin Wa\u0199o\u0199i',
       recipients: ['hymnestryteam@outlook.com'],
       isHTML: false,
     );

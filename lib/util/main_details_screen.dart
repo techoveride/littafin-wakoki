@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_remote_config/firebase_remote_config.dart';
@@ -426,7 +426,7 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
       );
     } else {
       return AppBar(
-        title: const Text("Sacred Songs & Solos"),
+        title: const Text("Littafin Waƙoƙi"),
         bottom: TabBar(
           controller: tabController,
           tabs: [
@@ -600,9 +600,9 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
 
   void versionCheck() async {
     // Current installed version of app (matches pubspec.yaml version)
-    const String currentVersionStr = "1.2.1";
-    globals.app_version = currentVersionStr.replaceAll(".", "");
-    double currentVersion = double.tryParse(globals.app_version) ?? 121.0;
+    const String currentVersionStr = "1.0.0";
+    globals.app_version = currentVersionStr; // store with dots for display
+    double currentVersion = double.tryParse(currentVersionStr.replaceAll(".", "")) ?? 100.0;
     // Get Latest version info from firebase config
     final FirebaseRemoteConfig remoteConfig = FirebaseRemoteConfig.instance;
     try {

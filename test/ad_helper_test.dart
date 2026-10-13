@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:littafin_wakoki/ads/ad_helper.dart';
 
@@ -37,6 +37,7 @@ void main() {
       final bannerIdRegex = RegExp(r'^ca-app-pub-\d+/\d+$');
       final appIdRegex = RegExp(r'^ca-app-pub-\d+~\d+$');
 
+      expect(bannerIdRegex.hasMatch(AdHelper.bannerAdUnitId), isTrue);
       expect(appIdRegex.hasMatch(AdHelper.androidAppId), isTrue);
     });
   });

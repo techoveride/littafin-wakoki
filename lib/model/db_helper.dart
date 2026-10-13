@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -12,7 +12,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class DatabaseHelper {
   static const String dbName = "Hymn_Lyrics.db";
-  static const int dbVersion = 2;
+  static const int dbVersion = 3;
 
   // Unified table name
   static const String tableHymns = "Hymns";
@@ -55,12 +55,14 @@ class DatabaseHelper {
     String documentsDirectory = await getDatabasesPath();
     String path = join(documentsDirectory, dbName);
 
-    return await openDatabase(
+    final db = await openDatabase(
       path,
       version: dbVersion,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
+    await checkAndFixMojibake(db);
+    return db;
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -143,6 +145,46 @@ class DatabaseHelper {
         debugPrint("Note: Legacy table migration skipped or finished: $e");
       }
     }
+
+    if (oldVersion < 3) {
+      await _refreshOfficialHymnsUTF8(db);
+    }
+  }
+
+  /// Checks and repairs any existing database rows that contain mojibake characters
+  Future<void> checkAndFixMojibake(Database db) async {
+    try {
+      final test = await db.rawQuery(
+        "SELECT $colId FROM $tableHymns WHERE $colIsCustom = 0 AND ($colTitle LIKE '%Æ%' OR $colLyrics LIKE '%Æ%' OR $colTitle LIKE '%É%' OR $colLyrics LIKE '%É%') LIMIT 1"
+      );
+      if (test.isNotEmpty) {
+        debugPrint("Detected mojibake text in SQLite. Auto-repairing hymns to UTF-8...");
+        await _refreshOfficialHymnsUTF8(db);
+      }
+    } catch (e) {
+      debugPrint("Mojibake check notice: $e");
+    }
+  }
+
+  /// Refreshes all official hymns with pristine UTF-8 Hausa lyrics without altering user favorites or custom hymns
+  Future<void> _refreshOfficialHymnsUTF8(Database db) async {
+    final batch = db.batch();
+    for (var hymn in listHymns) {
+      batch.update(
+        tableHymns,
+        {
+          colTitle: hymn.title,
+          colAuthor: hymn.author,
+          colLyrics: hymn.lyric,
+          colTune: hymn.tune,
+          colUpdatedAt: DateTime.now().millisecondsSinceEpoch,
+        },
+        where: "$colId = ? AND $colIsCustom = 0",
+        whereArgs: [hymn.id],
+      );
+    }
+    await batch.commit(noResult: true);
+    debugPrint("Refreshed ${listHymns.length} official hymns to pristine UTF-8 in SQLite.");
   }
 
   /// Seeds official hymns into the database using a high-performance batch insert
@@ -201,6 +243,12 @@ class DatabaseHelper {
     bool? customOnly,
     String? sortBy, // 'number', 'title'
   }) async {
+    if (kIsWeb) {
+      if (favoritesOnly == true) {
+        return listHymns.where((h) => h.favorite == 1).toList();
+      }
+      return listHymns;
+    }
     final db = await getDB;
     String whereClause = "";
     List<dynamic> whereArgs = [];
@@ -237,8 +285,21 @@ class DatabaseHelper {
     bool favoritesOnly = false,
     bool customOnly = false,
   }) async {
-    final db = await getDB;
     final cleanQuery = query.trim().toLowerCase();
+    if (kIsWeb) {
+      var list = listHymns;
+      if (favoritesOnly) {
+        list = list.where((h) => h.favorite == 1).toList();
+      }
+      if (cleanQuery.isEmpty) return list;
+      return list.where((h) {
+        return h.title.toLowerCase().contains(cleanQuery) ||
+            h.lyric.toLowerCase().contains(cleanQuery) ||
+            h.id.toString().contains(cleanQuery) ||
+            (h.author?.toLowerCase().contains(cleanQuery) ?? false);
+      }).toList();
+    }
+    final db = await getDB;
     if (cleanQuery.isEmpty) {
       return getHymnsList(favoritesOnly: favoritesOnly, customOnly: customOnly);
     }

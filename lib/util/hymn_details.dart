@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
@@ -259,7 +259,7 @@ class HymnDetailsState extends State<HymnDetails> with WidgetsBindingObserver {
 
   void shareIntent() {
     Share.share(
-      "Title: ${widget.hymns.title}\n\n${widget.hymns.lyric}\n\nShared from Sacred Songs & Solos",
+      "Title: ${widget.hymns.title}\n\n${widget.hymns.lyric}\n\nShared from Littafin Waƙoƙi",
       subject: widget.hymns.title,
     );
   }

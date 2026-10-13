@@ -823,7 +823,7 @@ class _SettingsState extends State<Settings> {
                 subtitle: Text(
                   isPro
                       ? "Lifetime ad-free access enabled"
-                      : "Remove all advertisements forever â€¢ ${PurchaseNotifier.instance.formattedPrice}",
+                      : "Remove all advertisements forever \u2022 ${PurchaseNotifier.instance.formattedPrice}",
                 ),
                 trailing: isPro
                     ? const Icon(Icons.check_circle, color: Colors.green)

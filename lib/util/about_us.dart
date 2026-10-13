@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
 import 'package:littafin_wakoki/model/globals.dart' as globals;
 import 'package:url_launcher/url_launcher.dart';
@@ -13,7 +13,7 @@ class AboutUs extends StatelessWidget {
 
     final String appVersion = globals.app_version.isNotEmpty
         ? globals.app_version
-        : "1.1.5";
+        : "1.0.0";
 
     return Scaffold(
       appBar: AppBar(
@@ -191,7 +191,7 @@ class AboutUs extends StatelessWidget {
             child: Column(
               children: [
                 Text(
-                  "Â© 2026 Hymnestry Apps â€¢ TechOveride",
+                  "\u00A9 2026 Hymnestry Apps \u2022 TechOveride",
                   style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
                 ),
                 const SizedBox(height: 4),

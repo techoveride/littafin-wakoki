@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
 import 'package:littafin_wakoki/model/webview.dart';
 import 'package:share_plus/share_plus.dart';
@@ -49,7 +49,7 @@ class SupportUs extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    "\"Sing praises to God, sing praises; sing praises unto our King, sing praises.\"\nâ€” Psalm 47:6",
+                    "\"Sing praises to God, sing praises; sing praises unto our King, sing praises.\"\n— Psalm 47:6",
                     textAlign: TextAlign.center,
                     style: theme.textTheme.bodySmall?.copyWith(
                       fontStyle: FontStyle.italic,
@@ -149,14 +149,14 @@ class SupportUs extends StatelessWidget {
             context: context,
             icon: Icons.share_rounded,
             iconColor: Colors.indigo,
-            title: "Share Sacred Songs & Solos",
+            title: "Share Littafin Waƙoƙi",
             description: "The easiest way to support us for free! Tell your choir, church members, and fellowship groups about the app.",
             buttonLabel: "Share App with Others",
             buttonIcon: Icons.share,
             onPressed: () {
               Share.share(
-                "I use Sacred Songs & Solos (+Tunes) for worship and choir singing. Download it here: https://hymnestry.techoveridehub.com/",
-                subject: "Sacred Songs & Solos Hymn Book App",
+                "I use Littafin Waƙoƙi (+Tunes) for worship and choir singing. Download it here: https://play.google.com/store/apps/details?id=com.hymnestry.littafinwakoki",
+                subject: "Littafin Waƙoƙi App",
               );
             },
           ),
@@ -242,7 +242,7 @@ class SupportUs extends StatelessWidget {
   Future<void> _emailTuneContribution() async {
     final Email email = Email(
       body: 'Hi Hymnestry Team!\n\nI would like to contribute a melody/tune for Hymn #:\nTune Name:\n(Please attach the audio or MIDI file to this email)\n\nThank you!',
-      subject: 'Hymn Tune Contribution - Sacred Songs & Solos',
+      subject: 'Hymn Tune Contribution - Littafin Waƙoƙi',
       recipients: ['hymnestryteam@outlook.com'],
       isHTML: false,
     );

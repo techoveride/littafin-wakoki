@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:littafin_wakoki/model/globals.dart' as globals;
 import 'package:littafin_wakoki/model/hymn_composer.dart';
 import 'package:share_plus/share_plus.dart';

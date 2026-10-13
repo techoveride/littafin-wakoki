@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
@@ -22,29 +22,44 @@ class SyncResult {
 }
 
 class HymnSyncService {
-  static const String prefLastSyncTime = "hymn_last_sync_timestamp";
-  static const String prefSyncVersion = "hymn_data_sync_version";
+  static const String prefLastSyncTime = "wakoki_last_sync_timestamp";
+  static const String prefSyncVersion = "wakoki_data_sync_version";
+  static const String legacyPrefSyncVersion = "hymn_data_sync_version";
 
-  // Remote Config parameter keys
-  static const String rcHymnVersionKey = "hymn_catalog_version";
-  static const String rcHymnUpdatesUrlKey = "hymn_updates_url";
+  // Remote Config parameter keys (supports both wakoki-specific and generic keys)
+  static const String rcWakokiVersionKey = "wakoki_catalog_version";
+  static const String rcWakokiUpdatesUrlKey = "wakoki_updates_url";
+  static const String rcLegacyVersionKey = "hymn_catalog_version";
+  static const String rcLegacyUpdatesUrlKey = "hymn_updates_url";
 
-  // Default fallback URL if Remote Config key is empty
-  static const String fallbackSyncEndpoint =
-      "https://raw.githubusercontent.com/hymnestry/hymns-manifest/main/hymn_updates.json";
+  // Default fallback URL if Remote Config key is empty (empty by default for security)
+  static const String fallbackSyncEndpoint = "";
 
   final DatabaseHelper _dbHelper = DatabaseHelper();
 
   /// Gets the local synced version from SharedPreferences (defaults to 1)
   Future<int> getLocalSyncVersion() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(prefSyncVersion) ?? 1;
+    return prefs.getInt(prefSyncVersion) ??
+        prefs.getInt(legacyPrefSyncVersion) ??
+        1;
   }
 
   /// Checks for and applies remote hymn updates via Firebase Remote Config
   Future<SyncResult> syncRemoteHymns({bool forceSync = false, String? directUrl}) async {
     final prefs = await SharedPreferences.getInstance();
-    final int localVersion = prefs.getInt(prefSyncVersion) ?? 1;
+    final int localVersion = prefs.getInt(prefSyncVersion) ??
+        prefs.getInt(legacyPrefSyncVersion) ??
+        1;
+
+    if (kIsWeb) {
+      return SyncResult(
+        success: true,
+        updatedCount: 0,
+        currentVersion: localVersion,
+        message: "Hymns are up to date on web.",
+      );
+    }
 
     int targetVersion = localVersion;
     String targetUrl = directUrl ?? fallbackSyncEndpoint;
@@ -59,9 +74,20 @@ class HymnSyncService {
         ));
         await remoteConfig.fetchAndActivate();
 
-        final int rcVersion = remoteConfig.getInt(rcHymnVersionKey);
-        final String rcUrl = remoteConfig.getString(rcHymnUpdatesUrlKey).trim();
-        debugPrint("Remote Config fetch result: $rcHymnVersionKey = $rcVersion, $rcHymnUpdatesUrlKey = '$rcUrl'");
+        // Check wakoki_catalog_version first, then legacy hymn_catalog_version
+        int rcVersion = remoteConfig.getInt(rcWakokiVersionKey);
+        if (rcVersion <= 0) {
+          rcVersion = remoteConfig.getInt(rcLegacyVersionKey);
+        }
+
+        // Check wakoki_updates_url first, then legacy hymn_updates_url
+        String rcUrl = remoteConfig.getString(rcWakokiUpdatesUrlKey).trim();
+        if (rcUrl.isEmpty) {
+          rcUrl = remoteConfig.getString(rcLegacyUpdatesUrlKey).trim();
+        }
+
+        debugPrint(
+            "Remote Config fetch result: catalog_version = $rcVersion, updates_url = '$rcUrl'");
 
         if (rcVersion > 0) {
           targetVersion = rcVersion;
@@ -70,8 +96,17 @@ class HymnSyncService {
           targetUrl = rcUrl;
         }
       } catch (e) {
-        debugPrint("Remote Config fetch error: $e");
+        debugPrint("Remote Config fetch warning: $e");
       }
+    }
+
+    if (targetUrl.isEmpty) {
+      return SyncResult(
+        success: true,
+        updatedCount: 0,
+        currentVersion: localVersion,
+        message: "No remote update URL configured.",
+      );
     }
 
     // 2. Check if an update is actually needed (skip network download if already on latest version)
@@ -80,7 +115,7 @@ class HymnSyncService {
         success: true,
         updatedCount: 0,
         currentVersion: localVersion,
-        message: "Hymns are up to date (Version $localVersion).",
+        message: "Littafin Waƙoƙi is up to date (Version $localVersion).",
       );
     }
 
@@ -101,6 +136,17 @@ class HymnSyncService {
         if (decoded is List) {
           hymnListJson = decoded;
         } else if (decoded is Map<String, dynamic>) {
+          // Safety guard: ensure the manifest is for wakoki, not sss
+          final appId = decoded['app_id']?.toString().toLowerCase();
+          if (appId != null && appId != 'wakoki' && appId != 'lw') {
+            debugPrint("Warning: Manifest app_id is '$appId', expected 'wakoki'. Aborting sync.");
+            return SyncResult(
+              success: false,
+              updatedCount: 0,
+              currentVersion: localVersion,
+              message: "Manifest app mismatch: Expected Littafin Waƙoƙi but found '$appId'.",
+            );
+          }
           incomingManifestVersion = decoded['manifest_version'] is int ? decoded['manifest_version'] : null;
           if (decoded['hymns'] is List) {
             hymnListJson = decoded['hymns'];

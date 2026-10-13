@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 
 import 'package:firebase_remote_config/firebase_remote_config.dart';
@@ -106,7 +106,7 @@ class _MyDrawerState extends State<MyDrawer> {
                 subtitle: Text(
                   isPro
                       ? "Lifetime ad-free access"
-                      : "Remove ads â€¢ ${PurchaseNotifier.instance.formattedPrice}",
+                      : "Remove ads \u2022 ${PurchaseNotifier.instance.formattedPrice}",
                   style: const TextStyle(fontSize: 12),
                 ),
                 onTap: () {
@@ -143,20 +143,19 @@ class _MyDrawerState extends State<MyDrawer> {
               "Check for Hymn Updates",
             ),
             onTap: () async {
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
+              scaffoldMessenger.showSnackBar(
                 const SnackBar(
                     content: Text("Checking for new hymn updates...")),
               );
               final result = await HymnSyncService().syncRemoteHymns(forceSync: true);
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(result.message)),
-                );
-                if (result.updatedCount > 0) {
-                  hymnGKey.currentState?.refreshList();
-                  HymnsNotifier.instance.notifyHymnsChanged();
-                }
+              scaffoldMessenger.showSnackBar(
+                SnackBar(content: Text(result.message)),
+              );
+              if (result.updatedCount > 0) {
+                hymnGKey.currentState?.refreshList();
+                HymnsNotifier.instance.notifyHymnsChanged();
               }
             },
           ),
@@ -350,7 +349,7 @@ class _MyDrawerState extends State<MyDrawer> {
       builder: (dialogCtx) => AppDialog(
         icon: Icons.check_circle_outline,
         title: "Up to Date!",
-        subtitle: "You already have the latest version of Sacred Songs & Solos.",
+        subtitle: "You already have the latest version of Littafin Waƙoƙi.",
         content: const SizedBox(height: 8),
         actions: [
           TextButton(
@@ -423,7 +422,7 @@ class _MyDrawerState extends State<MyDrawer> {
         ? url = globals.PLAY_STORE_URL
         : url = globals.APP_STORE_URL;
     Share.share(
-        "Worship God in Awe\nInstall Sacred Songs & Solos app and enjoy the free tunes attached to each hymn.\nGet it here: \n $url");
+        "Worship God in Awe\nInstall Littafin Waƙoƙi app and enjoy the free tunes attached to each hymn.\nGet it here: \n $url");
   }
 }
 

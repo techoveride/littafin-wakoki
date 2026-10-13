@@ -47,6 +47,7 @@ class _AnchoredAdaptiveAdState extends State<AnchoredAdaptiveAd> {
     }
 
     await _anchoredAdaptiveAd?.dispose();
+    if (!mounted) return;
     setState(() {
       _anchoredAdaptiveAd = null;
       _isLoaded = false;

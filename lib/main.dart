@@ -14,6 +14,7 @@ import 'ads/applifecyclereactor.dart';
 import 'ads/appopenadmanager.dart';
 import 'firebase_options.dart';
 import 'model/db_helper.dart';
+import 'model/hymn.dart';
 import 'service/hymn_sync_service.dart';
 import 'state/hymns_notifier.dart';
 import 'state/purchase_notifier.dart';
@@ -36,23 +37,42 @@ void main() async {
     }
   }
 
-  // Safe Firebase initialization
-  final isFirebaseConfigured =
-      kIsWeb || (Platform.isAndroid || Platform.isIOS || Platform.isMacOS);
+  // Safe Firebase initialization with timeout protection so web never hangs
+  final isFirebaseConfigured = kIsWeb ||
+      (!kIsWeb &&
+          (Platform.isAndroid ||
+              Platform.isIOS ||
+              Platform.isMacOS ||
+              Platform.isWindows));
   if (isFirebaseConfigured) {
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
+      ).timeout(
+        const Duration(seconds: 4),
+        onTimeout: () {
+          debugPrint("Firebase initialization timed out; continuing app launch.");
+          return Firebase.app();
+        },
       );
     } catch (e) {
       debugPrint("Firebase not initialized: $e");
     }
   }
 
-  // Initialize SQLite database and load hymns
-  final dbHelper = DatabaseHelper();
-  await dbHelper.initDB();
-  globals.defaultHymn = await dbHelper.getHymnsList();
+  // Initialize hymns (SQLite on mobile/desktop, in-memory on Web)
+  if (kIsWeb) {
+    globals.defaultHymn = listHymns;
+  } else {
+    try {
+      final dbHelper = DatabaseHelper();
+      await dbHelper.initDB();
+      globals.defaultHymn = await dbHelper.getHymnsList();
+    } catch (e) {
+      debugPrint("SQLite initialization error: $e");
+      globals.defaultHymn = listHymns;
+    }
+  }
 
   // Non-blocking background sync check
   HymnSyncService().syncRemoteHymns().then((result) {

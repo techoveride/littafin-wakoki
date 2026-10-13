@@ -1,4 +1,4 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
 import 'package:littafin_wakoki/model/globals.dart' as globals;
@@ -179,7 +179,7 @@ class _ReportBugState extends State<ReportBug> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      "Device diagnostic data ($platformName â€¢ App v${globals.app_version.isNotEmpty ? globals.app_version : '1.2.1'}) will be automatically attached to help us debug.",
+                      "Device diagnostic data ($platformName \u2022 App v${globals.app_version.isNotEmpty ? globals.app_version : '1.2.1'}) will be automatically attached to help us debug.",
                       style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, height: 1.3),
                     ),
                   ),
@@ -226,7 +226,7 @@ class _ReportBugState extends State<ReportBug> {
     final title = _titleController.text.trim();
     final description = _descriptionController.text.trim();
     final platform = Platform.isAndroid ? "Android" : Platform.isIOS ? "iOS" : "Other";
-    final appVer = globals.app_version.isNotEmpty ? globals.app_version : "1.2.1";
+    final appVer = globals.app_version.isNotEmpty ? globals.app_version : "1.0.0";
 
     final emailBody = """
 Category: $_selectedCategory
