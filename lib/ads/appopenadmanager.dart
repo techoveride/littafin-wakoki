@@ -25,7 +25,6 @@ class AppOpenAdManager {
 
     AppOpenAd.load(
       adUnitId: AdHelper.appOpenAdUnitId,
-      orientation: AppOpenAd.orientationPortrait,
       request: const AdRequest(),
       adLoadCallback: AppOpenAdLoadCallback(
         onAdLoaded: (ad) {
