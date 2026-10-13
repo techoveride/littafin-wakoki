@@ -203,7 +203,7 @@ class SupportUs extends StatelessWidget {
     final Email email = Email(
       body: 'Hi Hymnestry Team!\n\nI would like to contribute a melody/tune for Hymn #:\nTune Name:\n(Please attach the audio or MIDI file to this email)\n\nThank you!',
       subject: 'Hymn Tune Contribution - Littafin Waƙoƙi',
-      recipients: ['hymnestryteam@outlook.com'],
+      recipients: ['techoveridehub@gmail.com'],
       isHTML: false,
     );
     try {
@@ -217,7 +217,7 @@ class SupportUs extends StatelessWidget {
     final Email email = Email(
       body: 'Hi Hymnestry Team!\n\nI am interested in a custom hymn book app for:\nOrganization / Church Name:\nLocation / Country:\nDetails:\n\nLooking forward to hearing from you!',
       subject: 'Custom Hymn App Inquiry - Hymnestry',
-      recipients: ['hymnestryteam@outlook.com'],
+      recipients: ['techoveridehub@gmail.com'],
       isHTML: false,
     );
     try {

@@ -249,7 +249,7 @@ class HelpMe extends StatelessWidget {
     final Email email = Email(
       body: 'Hi Hymnestry Support!\n\nI need help with:\n',
       subject: 'Help Request - Littafin Wa\u0199o\u0199i',
-      recipients: ['hymnestryteam@outlook.com'],
+      recipients: ['techoveridehub@gmail.com'],
       isHTML: false,
     );
     try {

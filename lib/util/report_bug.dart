@@ -265,7 +265,7 @@ Timestamp: ${DateTime.now().toIso8601String()}
     final Email email = Email(
       body: emailBody,
       subject: '[$_selectedCategory] $title',
-      recipients: ['hymnestryteam@outlook.com'],
+      recipients: ['techoveridehub@gmail.com'],
       isHTML: false,
     );
 

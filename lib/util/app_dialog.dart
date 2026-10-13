@@ -282,7 +282,10 @@ class AppOptionCard<T> extends StatelessWidget {
           child: Row(
             children: [
               if (leading != null) ...[
-                leading!,
+                IconTheme.merge(
+                  data: IconThemeData(color: isSelected ? primary : null),
+                  child: leading!,
+                ),
                 const SizedBox(width: 12),
               ],
               Expanded(
@@ -308,7 +311,7 @@ class AppOptionCard<T> extends StatelessWidget {
                 ),
               ),
               if (isSelected)
-                Icon(Icons.check_circle, color: primary, size: 20)
+                Icon(Icons.radio_button_checked, color: primary, size: 20)
               else
                 Icon(
                   Icons.radio_button_unchecked,

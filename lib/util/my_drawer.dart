@@ -87,7 +87,7 @@ class _MyDrawerState extends State<MyDrawer> {
               "Hymnestry",
             ),
             accountEmail: const Text(
-              "hymnestryteam@outlook.com",
+              "techoveridehub@gmail.com",
             ),
           ),
           ListenableBuilder(

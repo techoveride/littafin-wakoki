@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:littafin_wakoki/model/globals.dart' as globals;
 import 'package:littafin_wakoki/model/hymn.dart';
 import 'package:littafin_wakoki/model/hymn_composer.dart';
+import 'package:littafin_wakoki/model/hymn_sort.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
@@ -252,10 +253,11 @@ class DatabaseHelper {
     String? sortBy, // 'number', 'title'
   }) async {
     if (kIsWeb) {
-      if (favoritesOnly == true) {
-        return listHymns.where((h) => h.favorite == 1).toList();
-      }
-      return listHymns;
+      final list = favoritesOnly == true
+          ? listHymns.where((h) => h.favorite == 1).toList()
+          : List<Hymns>.of(listHymns);
+      if (sortBy == 'title') list.sort(compareHymnTitles);
+      return list;
     }
     final db = await getDB;
     String whereClause = "";
@@ -270,21 +272,18 @@ class DatabaseHelper {
       whereClause += "$colIsCustom = 1";
     }
 
-    String orderBy = "$colId ASC";
-    if (sortBy == 'title') {
-      orderBy = "$colTitle COLLATE NOCASE ASC";
-    } else if (sortBy == 'number') {
-      orderBy = "$colId ASC";
-    }
-
+    // Titles carry a number prefix ("001-", "‘Y01-"), so SQL can't sort them
+    // alphabetically; title sorting is done in Dart below.
     final List<Map<String, dynamic>> maps = await db.query(
       tableHymns,
       where: whereClause.isEmpty ? null : whereClause,
       whereArgs: whereArgs.isEmpty ? null : whereArgs,
-      orderBy: orderBy,
+      orderBy: "$colId ASC",
     );
 
-    return List.generate(maps.length, (i) => Hymns.fromMap(maps[i]));
+    final hymns = List.generate(maps.length, (i) => Hymns.fromMap(maps[i]));
+    if (sortBy == 'title') hymns.sort(compareHymnTitles);
+    return hymns;
   }
 
   /// Searches hymns across title, author, and lyrics

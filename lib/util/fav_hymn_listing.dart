@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:littafin_wakoki/model/db_helper.dart';
 import 'package:littafin_wakoki/model/globals.dart' as globals;
 import 'package:littafin_wakoki/model/hymn.dart';
+import 'package:littafin_wakoki/model/hymn_sort.dart';
 import 'package:littafin_wakoki/util/hymn_listing.dart';
 import '../state/hymns_notifier.dart';
 
@@ -27,6 +28,9 @@ class FavHymnListingState extends State<FavHymnListing> {
   List<Hymns> _favHymnList = [];
   bool _isLoading = true;
   String _currentSort = 'number';
+
+  /// Active sort order ('number' or 'title'), shown as selected in the sort dialog.
+  String get currentSort => _currentSort;
   String _currentQuery = '';
 
   final ScrollController _scrollControl = ScrollController();
@@ -99,8 +103,7 @@ class FavHymnListingState extends State<FavHymnListing> {
     _currentSort = 'title';
     if (_currentQuery.isNotEmpty) {
       setState(() {
-        _favHymnList.sort(
-            (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        _favHymnList.sort(compareHymnTitles);
       });
     } else {
       await loadFavorites();

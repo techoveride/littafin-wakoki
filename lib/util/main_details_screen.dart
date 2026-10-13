@@ -529,6 +529,9 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
   }
 
   sortList() {
+    final String activeSort = hymnGKey.currentState?.currentSort ??
+        favHymnGKey.currentState?.currentSort ??
+        'number';
     showAppDialog(
       context: context,
       builder: (dialogCtx) => AppDialog(
@@ -540,7 +543,7 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
           children: [
             AppOptionCard<String>(
               value: 'number',
-              groupValue: '',
+              groupValue: activeSort,
               title: "Hymn Number (#)",
               subtitle: "Order hymns numerically (1, 2, 3...)",
               leading: const Icon(Icons.format_list_numbered),
@@ -554,7 +557,7 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
             const SizedBox(height: 6),
             AppOptionCard<String>(
               value: 'title',
-              groupValue: '',
+              groupValue: activeSort,
               title: "Hymn Title (A-Z)",
               subtitle: "Order hymns alphabetically",
               leading: const Icon(Icons.sort_by_alpha),

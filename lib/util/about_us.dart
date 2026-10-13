@@ -157,7 +157,7 @@ class AboutUs extends StatelessWidget {
                 _buildLinkTile(
                   iconWidget: const Icon(Icons.email_outlined, color: Colors.redAccent),
                   title: "Contact Hymnestry Team",
-                  subtitle: "hymnestryteam@outlook.com",
+                  subtitle: "techoveridehub@gmail.com",
                   onTap: () => _emailIntent(),
                 ),
                 const Divider(height: 1, indent: 56),
@@ -234,7 +234,7 @@ class AboutUs extends StatelessWidget {
     final Email email = Email(
       body: 'Hi Hymnestry Team!\n\n',
       subject: 'Inquiry / Contact - Littafin Wakoki',
-      recipients: ['hymnestryteam@outlook.com'],
+      recipients: ['techoveridehub@gmail.com'],
       isHTML: false,
     );
     try {
