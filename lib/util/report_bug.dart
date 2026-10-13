@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
 import 'package:littafin_wakoki/model/globals.dart' as globals;
+import 'package:package_info_plus/package_info_plus.dart';
 
 class ReportBug extends StatefulWidget {
   const ReportBug({super.key});
@@ -17,6 +18,7 @@ class _ReportBugState extends State<ReportBug> {
 
   String _selectedCategory = "Bug / Crash";
   bool _isSending = false;
+  String _appVersion = globals.app_version;
 
   final List<String> _categories = [
     "Bug / Crash",
@@ -24,6 +26,19 @@ class _ReportBugState extends State<ReportBug> {
     "Lyric Typo / Error",
     "Feature Suggestion",
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+  }
+
+  /// Reads the installed build's version (e.g. "1.0.3 (5)") so reports always match pubspec.yaml.
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    setState(() => _appVersion = "${info.version} (${info.buildNumber})");
+  }
 
   @override
   void dispose() {
@@ -179,7 +194,7 @@ class _ReportBugState extends State<ReportBug> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      "Device diagnostic data ($platformName \u2022 App v${globals.app_version.isNotEmpty ? globals.app_version : '1.2.1'}) will be automatically attached to help us debug.",
+                      "Device diagnostic data ($platformName \u2022 App v$_appVersion) will be automatically attached to help us debug.",
                       style: theme.textTheme.bodySmall?.copyWith(fontSize: 11, height: 1.3),
                     ),
                   ),
@@ -226,7 +241,9 @@ class _ReportBugState extends State<ReportBug> {
     final title = _titleController.text.trim();
     final description = _descriptionController.text.trim();
     final platform = Platform.isAndroid ? "Android" : Platform.isIOS ? "iOS" : "Other";
-    final appVer = globals.app_version.isNotEmpty ? globals.app_version : "1.0.0";
+    final appVer = _appVersion.isNotEmpty
+        ? _appVersion
+        : (await PackageInfo.fromPlatform()).version;
 
     final emailBody = """
 Category: $_selectedCategory

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
 import 'package:littafin_wakoki/model/globals.dart' as globals;
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AboutUs extends StatelessWidget {
@@ -10,10 +11,6 @@ class AboutUs extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-
-    final String appVersion = globals.app_version.isNotEmpty
-        ? globals.app_version
-        : "1.0.0";
 
     return Scaffold(
       appBar: AppBar(
@@ -60,13 +57,23 @@ class AboutUs extends StatelessWidget {
                       color: colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text(
-                      "Version $appVersion",
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onPrimaryContainer,
-                      ),
+                    // Read from the installed build so it always matches pubspec.yaml
+                    child: FutureBuilder<PackageInfo>(
+                      future: PackageInfo.fromPlatform(),
+                      builder: (context, snapshot) {
+                        final info = snapshot.data;
+                        final String appVersion = info != null
+                            ? "${info.version} (${info.buildNumber})"
+                            : globals.app_version;
+                        return Text(
+                          appVersion.isEmpty ? "Version" : "Version $appVersion",
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: colorScheme.onPrimaryContainer,
+                          ),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 12),
