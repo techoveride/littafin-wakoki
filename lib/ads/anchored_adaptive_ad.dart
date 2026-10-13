@@ -16,8 +16,11 @@ class AnchoredAdaptiveAd extends StatefulWidget {
 class _AnchoredAdaptiveAdState extends State<AnchoredAdaptiveAd> {
   BannerAd? _anchoredAdaptiveAd;
   bool _isLoaded = false;
-  late Orientation _currentOrientation;
   double adHeight = 0.0;
+
+  /// Width of the space the banner sits in (e.g. the hymn pane on tablets),
+  /// which can be narrower than the screen.
+  double? _availableWidth;
 
   void closeBanner() {
     if (_isLoaded) {
@@ -26,10 +29,9 @@ class _AnchoredAdaptiveAdState extends State<AnchoredAdaptiveAd> {
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _currentOrientation = MediaQuery.of(context).orientation;
-    _loadAd();
+  void dispose() {
+    _anchoredAdaptiveAd?.dispose();
+    super.dispose();
   }
 
   /// Load another ad, disposing of the current ad if there is one.
@@ -55,8 +57,9 @@ class _AnchoredAdaptiveAdState extends State<AnchoredAdaptiveAd> {
 
     final AnchoredAdaptiveBannerAdSize? size =
         await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(
-            MediaQuery.of(context).size.width.truncate());
+            (_availableWidth ?? MediaQuery.of(context).size.width).truncate());
 
+    if (!mounted) return;
     if (size == null) {
       debugPrint('Unable to get height of anchored banner.');
       return;
@@ -70,6 +73,10 @@ class _AnchoredAdaptiveAdState extends State<AnchoredAdaptiveAd> {
         onAdLoaded: (Ad ad) {
           if (kDebugMode) {
             print('$ad loaded: ${ad.responseInfo}');
+          }
+          if (!mounted) {
+            ad.dispose();
+            return;
           }
           setState(() {
             // When the ad is loaded, get the ad size and use it to set
@@ -88,33 +95,6 @@ class _AnchoredAdaptiveAdState extends State<AnchoredAdaptiveAd> {
     return _anchoredAdaptiveAd!.load();
   }
 
-  /// Gets a widget containing the ad, if one is loaded.
-  ///
-  /// Returns an empty container if no ad is loaded, or the orientation
-  /// has changed. Also loads a new ad if the orientation changes.
-  Widget _getAdWidget() {
-    return OrientationBuilder(
-      builder: (context, orientation) {
-        if (_currentOrientation == orientation &&
-            _anchoredAdaptiveAd != null &&
-            _isLoaded) {
-          return Container(
-            color: Colors.transparent,
-            width: _anchoredAdaptiveAd!.size.width.toDouble(),
-            height: _anchoredAdaptiveAd!.size.height.toDouble(),
-            child: AdWidget(ad: _anchoredAdaptiveAd!),
-          );
-        }
-        // Reload the ad if the orientation changes.
-        if (_currentOrientation != orientation) {
-          _currentOrientation = orientation;
-          _loadAd();
-        }
-        return Container();
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
@@ -122,13 +102,35 @@ class _AnchoredAdaptiveAdState extends State<AnchoredAdaptiveAd> {
       return const SizedBox.shrink();
     }
 
-    return ListenableBuilder(
-      listenable: PurchaseNotifier.instance,
-      builder: (context, _) {
-        if (PurchaseNotifier.instance.isPro || !_isLoaded || _anchoredAdaptiveAd == null) {
-          return const SizedBox.shrink();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Load (or reload after rotation/resizing) for the width actually available.
+        final width = constraints.maxWidth;
+        if (width.isFinite && width != _availableWidth) {
+          _availableWidth = width;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _loadAd();
+          });
         }
-        return SizedBox(height: adHeight + 4, child: _getAdWidget());
+        return ListenableBuilder(
+          listenable: PurchaseNotifier.instance,
+          builder: (context, _) {
+            final ad = _anchoredAdaptiveAd;
+            if (PurchaseNotifier.instance.isPro || !_isLoaded || ad == null) {
+              return const SizedBox.shrink();
+            }
+            return SizedBox(
+              height: adHeight + 4,
+              child: Center(
+                child: SizedBox(
+                  width: ad.size.width.toDouble(),
+                  height: ad.size.height.toDouble(),
+                  child: AdWidget(ad: ad),
+                ),
+              ),
+            );
+          },
+        );
       },
     );
   }

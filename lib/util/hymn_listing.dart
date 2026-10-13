@@ -173,6 +173,13 @@ class HymnListingState extends State<HymnListing> {
           itemBuilder: (_, index) {
             final hymn = _hymnList[index];
             final bool isSelected = widget.hymnSelected?.id == hymn.id;
+            final theme = Theme.of(context);
+            final bool isDark = theme.brightness == Brightness.dark;
+            // Strong theme colour (e.g. dark green) for the active hymn; amber in night mode.
+            final Color accent =
+                isDark ? theme.colorScheme.primary : theme.primaryColor;
+            final Color onAccent =
+                isDark ? theme.colorScheme.onPrimary : Colors.white;
 
             return Card(
               elevation: isSelected ? 6.0 : 3.0,
@@ -180,16 +187,14 @@ class HymnListingState extends State<HymnListing> {
                 borderRadius: BorderRadius.circular(8.0),
                 side: isSelected
                     ? BorderSide(
-                        color: Theme.of(context).colorScheme.secondary,
+                        color: accent,
                         width: 2.0,
                       )
                     : BorderSide.none,
               ),
               color: isSelected
-                  ? Theme.of(context)
-                      .colorScheme
-                      .secondary
-                      .withValues(alpha: 0.12)
+                  ? Color.alphaBlend(accent.withValues(alpha: isDark ? 0.16 : 0.08),
+                      theme.cardColor)
                   : null,
               margin:
                   const EdgeInsets.symmetric(horizontal: 6.0, vertical: 2.5),
@@ -200,7 +205,7 @@ class HymnListingState extends State<HymnListing> {
                       horizontal: 8.0, vertical: 4.0),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? Theme.of(context).colorScheme.secondary
+                        ? accent
                         : Theme.of(context)
                             .colorScheme
                             .secondary
@@ -213,7 +218,7 @@ class HymnListingState extends State<HymnListing> {
                       fontWeight: FontWeight.bold,
                       fontSize: hymn.isUserComposed ? 11.0 : 15.0,
                       color: isSelected
-                          ? Colors.white
+                          ? onAccent
                           : Theme.of(context).colorScheme.secondary,
                     ),
                   ),
@@ -243,6 +248,9 @@ class HymnListingState extends State<HymnListing> {
                         color: Colors.redAccent, size: 20)
                     : null,
                 selected: isSelected,
+                selectedColor: accent,
+                selectedTileColor: Colors.transparent,
+                focusColor: Colors.transparent,
                 onTap: () async {
                   widget.hymnSelectedCallback?.call(hymn);
                   if (globals.isPlaying) await globals.player.stop();

@@ -390,7 +390,9 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
             // destroyBanner: destroyBanner,
             // buildBanner: buildBanner,
           ),
-          bottomNavigationBar: const AnchoredAdaptiveAd(),
+          // Tablet/desktop: the hymn pane shows its own banner, so skip this one.
+          bottomNavigationBar:
+              isTabletLayout ? null : const AnchoredAdaptiveAd(),
         ),
       ),
     );
