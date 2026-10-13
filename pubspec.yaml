@@ -3,7 +3,7 @@ description: A Christian Hymn Book in Hausa
 
 publish_to: 'none'
 
-version: 1.0.6+8
+version: 1.0.7+9
 
 environment:
   sdk: ">=2.17.6 <4.0.0"
@@ -27,7 +27,7 @@ dependencies:
   clipboard: ^0.1.3
   firebase_analytics: ^10.1.1
   firebase_core: ^2.5.0
-  google_mobile_ads: ^2.3.0
+  google_mobile_ads: ^9.1.0
   in_app_update: ^4.0.1
   share_plus: ^13.3.0
   wakelock_plus: ^1.8.0
