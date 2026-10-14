@@ -212,7 +212,11 @@ class ProUpgradeDialogContent extends StatelessWidget {
                     )
                   : const Icon(Icons.shopping_bag_outlined, size: 18),
               label: Text(
-                isLoading ? "Processing..." : "Get Pro (${notifier.formattedPrice})",
+                isLoading
+                    ? "Processing..."
+                    : notifier.proProduct == null
+                        ? "Get Pro"
+                        : "Get Pro (${notifier.formattedPrice})",
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),

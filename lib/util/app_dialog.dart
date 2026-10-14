@@ -211,21 +211,25 @@ class AppDialog extends StatelessWidget {
               ),
               const Divider(height: 1, thickness: 1),
 
-              // Content Body
+              // Content Body (scrolls on short screens or with large system fonts)
               Flexible(
-                child: Padding(
+                child: SingleChildScrollView(
                   padding: contentPadding,
                   child: content,
                 ),
               ),
 
-              // Action Buttons
+              // Action Buttons: side by side when they fit, otherwise stacked,
+              // so wide buttons are never pushed off the dialog edge.
               if (actions != null && actions!.isNotEmpty) ...[
                 const Divider(height: 1, thickness: 1),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                  child: OverflowBar(
+                    alignment: MainAxisAlignment.end,
+                    spacing: 8,
+                    overflowSpacing: 8,
+                    overflowAlignment: OverflowBarAlignment.end,
                     children: actions!,
                   ),
                 ),

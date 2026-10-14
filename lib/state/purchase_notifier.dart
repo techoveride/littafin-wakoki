@@ -13,7 +13,6 @@ class PurchaseNotifier extends ChangeNotifier with WidgetsBindingObserver {
   /// Standard Non-Consumable product ID for removing ads and unlocking Pro features.
   /// Configure this exact ID in Google Play Console (In-app products) and App Store Connect.
   static const String proProductId = 'littafin_wakoki_pro_lifetime';
-  static const Set<String> _productIds = {'littafin_wakoki_pro_lifetime', 'hymn_book_pro_lifetime'};
   static const String _prefKeyIsPro = 'is_pro_user';
 
   /// Whether the current OS platform supports In-App Purchases (Android, iOS, macOS)
@@ -70,28 +69,7 @@ class PurchaseNotifier extends ChangeNotifier with WidgetsBindingObserver {
     // promo codes and purchases completed outside the app unlock Pro.
     WidgetsBinding.instance.addObserver(this);
 
-    try {
-      _isStoreAvailable = await _iap.isAvailable();
-      if (_isStoreAvailable) {
-        final ProductDetailsResponse response =
-            await _iap.queryProductDetails(_productIds);
-
-        if (response.notFoundIDs.isNotEmpty) {
-          debugPrint("IAP Products not found in store: ${response.notFoundIDs}");
-        }
-
-        if (response.productDetails.isNotEmpty) {
-          _proProduct = response.productDetails.firstWhere(
-            (p) => p.id == proProductId,
-            orElse: () => response.productDetails.first,
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint("IAP initialization error: $e");
-    }
-
-    notifyListeners();
+    await _loadStore();
 
     // Restore Pro automatically on a new or reset device (same Google account).
     _silentRestore();
@@ -113,12 +91,56 @@ class PurchaseNotifier extends ChangeNotifier with WidgetsBindingObserver {
     });
   }
 
+  /// Connects to the store and loads the Pro product. Safe to call again,
+  /// e.g. when the app started offline.
+  Future<void> _loadStore() async {
+    try {
+      _isStoreAvailable = await _iap.isAvailable();
+      if (_isStoreAvailable) {
+        final ProductDetailsResponse response =
+            await _iap.queryProductDetails({proProductId});
+
+        if (response.notFoundIDs.isNotEmpty) {
+          debugPrint("IAP Products not found in store: ${response.notFoundIDs}");
+        }
+
+        for (final product in response.productDetails) {
+          if (product.id == proProductId) _proProduct = product;
+        }
+      }
+    } catch (e) {
+      debugPrint("IAP store loading error: $e");
+    }
+    notifyListeners();
+  }
+
   /// Initiates non-consumable purchase of the Pro tier.
   Future<bool> buyPro() async {
-    if (!isPlatformSupported || !_isStoreAvailable || _proProduct == null) {
-      _errorMessage = isPlatformSupported
-          ? "Store is currently unavailable. Please check your internet connection or ${Platform.isIOS ? 'App Store' : 'Play Store'} login."
-          : "In-app purchases are not supported on this platform.";
+    if (!isPlatformSupported) {
+      _errorMessage = "In-app purchases are not supported on this platform.";
+      notifyListeners();
+      return false;
+    }
+
+    // Retry if the store or product failed to load earlier (e.g. offline at launch).
+    if (!_isStoreAvailable || _proProduct == null) {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+      await _loadStore();
+      _isLoading = false;
+    }
+
+    final storeName = Platform.isIOS ? 'App Store' : 'Google Play';
+    if (!_isStoreAvailable) {
+      _errorMessage =
+          "Can't reach $storeName. Please check your internet connection and that you're signed in to $storeName.";
+      notifyListeners();
+      return false;
+    }
+    if (_proProduct == null) {
+      _errorMessage =
+          "Pro isn't available to buy right now. Please make sure the app was installed from $storeName, then try again later.";
       notifyListeners();
       return false;
     }
