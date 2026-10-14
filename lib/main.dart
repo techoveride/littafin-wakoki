@@ -4,14 +4,15 @@ import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:littafin_wakoki/model/globals.dart' as globals;
 import 'package:littafin_wakoki/util/main_details_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import 'ads/ad_helper.dart';
 import 'ads/applifecyclereactor.dart';
 import 'ads/appopenadmanager.dart';
+import 'ads/consent_manager.dart';
 import 'firebase_options.dart';
 import 'model/db_helper.dart';
 import 'model/hymn.dart';
@@ -22,20 +23,6 @@ import 'state/reading_settings_notifier.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Mobile ads are supported on Android and iOS only
-  final isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
-  if (isMobile) {
-    try {
-      await MobileAds.instance.initialize();
-      // Global App Open Ad lifecycle management
-      AppOpenAdManager.instance.loadAd();
-      AppLifecycleReactor(appOpenAdManager: AppOpenAdManager.instance)
-          .listenToAppStateChanges();
-    } catch (e) {
-      debugPrint("MobileAds initialization error: $e");
-    }
-  }
 
   // Safe Firebase initialization with timeout protection so web never hangs
   final isFirebaseConfigured = kIsWeb ||
@@ -65,9 +52,7 @@ void main() async {
     globals.defaultHymn = listHymns;
   } else {
     try {
-      final dbHelper = DatabaseHelper();
-      await dbHelper.initDB();
-      globals.defaultHymn = await dbHelper.getHymnsList();
+      globals.defaultHymn = await DatabaseHelper().getHymnsList();
     } catch (e) {
       debugPrint("SQLite initialization error: $e");
       globals.defaultHymn = listHymns;
@@ -122,6 +107,23 @@ void main() async {
   });
 
   runApp(const MyApp());
+
+  // Ads start after the first screen is up: consent is gathered first (the
+  // form is shown only where the law requires it), then ads may load.
+  unawaited(_startAds());
+}
+
+Future<void> _startAds() async {
+  if (!AdHelper.isSupportedPlatform || PurchaseNotifier.instance.isPro) return;
+  try {
+    await ConsentManager.instance.gatherConsent();
+    // Global App Open Ad lifecycle management
+    AppOpenAdManager.instance.loadAd();
+    AppLifecycleReactor(appOpenAdManager: AppOpenAdManager.instance)
+        .listenToAppStateChanges();
+  } catch (e) {
+    debugPrint("Ads startup error: $e");
+  }
 }
 
 final StreamController<bool> isLightTheme = StreamController<bool>.broadcast();

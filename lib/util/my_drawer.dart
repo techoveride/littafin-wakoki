@@ -11,6 +11,7 @@ import 'package:littafin_wakoki/util/support_us.dart';
 import 'app_dialog.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../ads/consent_manager.dart';
 import '../service/hymn_sync_service.dart';
 import 'about_us.dart';
 import 'added_songs.dart';
@@ -169,6 +170,23 @@ class _MyDrawerState extends State<MyDrawer> {
               Navigator.push(context, MaterialPageRoute(builder: (_) {
                 return Settings();
               }));
+            },
+          ),
+          // Shown only where the ad consent form applies (e.g. EEA/UK users).
+          ListenableBuilder(
+            listenable: ConsentManager.instance,
+            builder: (context, _) {
+              if (!ConsentManager.instance.isPrivacyOptionsRequired) {
+                return const SizedBox.shrink();
+              }
+              return ListTile(
+                leading: const Icon(Icons.privacy_tip_outlined),
+                title: const Text("Ad Privacy Settings"),
+                onTap: () {
+                  Navigator.pop(context);
+                  ConsentManager.instance.showPrivacyOptionsForm();
+                },
+              );
             },
           ),
           ListTile(
@@ -415,8 +433,9 @@ class _MyDrawerState extends State<MyDrawer> {
     Platform.isAndroid
         ? url = globals.PLAY_STORE_URL
         : url = globals.APP_STORE_URL;
-    Share.share(
-        "Worship God in Awe\nInstall Littafin Waƙoƙi app and enjoy the free tunes attached to each hymn.\nGet it here: \n $url");
+    SharePlus.instance.share(ShareParams(
+        text:
+            "Worship God in Awe\nInstall Littafin Waƙoƙi app and enjoy the free tunes attached to each hymn.\nGet it here: \n $url"));
   }
 }
 

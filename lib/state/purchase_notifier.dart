@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Manages In-App Purchases and Pro Status reactively across the entire application.
-class PurchaseNotifier extends ChangeNotifier {
+class PurchaseNotifier extends ChangeNotifier with WidgetsBindingObserver {
   static final PurchaseNotifier instance = PurchaseNotifier._();
   PurchaseNotifier._();
 
@@ -23,6 +24,9 @@ class PurchaseNotifier extends ChangeNotifier {
   InAppPurchase get _iap => _iapInstance ??= InAppPurchase.instance;
 
   StreamSubscription<List<PurchaseDetails>>? _subscription;
+
+  /// Fires when a user-initiated restore found nothing to restore.
+  Timer? _restoreTimeout;
 
   bool _isPro = false;
   bool _isStoreAvailable = false;
@@ -62,6 +66,10 @@ class PurchaseNotifier extends ChangeNotifier {
       },
     );
 
+    // Re-check purchases whenever the app returns to the foreground, so Play
+    // promo codes and purchases completed outside the app unlock Pro.
+    WidgetsBinding.instance.addObserver(this);
+
     try {
       _isStoreAvailable = await _iap.isAvailable();
       if (_isStoreAvailable) {
@@ -84,6 +92,25 @@ class PurchaseNotifier extends ChangeNotifier {
     }
 
     notifyListeners();
+
+    // Restore Pro automatically on a new or reset device (same Google account).
+    _silentRestore();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _silentRestore();
+    }
+  }
+
+  /// Quietly re-checks past purchases without showing loading or errors.
+  /// Android only: on iOS, restoring can prompt for the Apple ID password.
+  void _silentRestore() {
+    if (_isPro || !_isStoreAvailable || kIsWeb || !Platform.isAndroid) return;
+    _iap.restorePurchases().catchError((e) {
+      debugPrint("Silent restore skipped: $e");
+    });
   }
 
   /// Initiates non-consumable purchase of the Pro tier.
@@ -131,6 +158,17 @@ class PurchaseNotifier extends ChangeNotifier {
 
     try {
       await _iap.restorePurchases();
+      // Restored purchases arrive on the purchase stream. If none arrive, the
+      // account has nothing to restore, so stop loading and say so.
+      _restoreTimeout?.cancel();
+      _restoreTimeout = Timer(const Duration(seconds: 5), () {
+        if (_isLoading && !_isPro) {
+          _isLoading = false;
+          _errorMessage =
+              "No previous Pro purchase was found for this ${Platform.isIOS ? 'Apple ID' : 'Google account'}.";
+          notifyListeners();
+        }
+      });
     } catch (e) {
       _isLoading = false;
       _errorMessage = e.toString();
@@ -150,6 +188,7 @@ class PurchaseNotifier extends ChangeNotifier {
 
           case PurchaseStatus.purchased:
           case PurchaseStatus.restored:
+            _restoreTimeout?.cancel();
             await _setProStatus(true);
             _isLoading = false;
             _errorMessage = null;
@@ -196,6 +235,8 @@ class PurchaseNotifier extends ChangeNotifier {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _restoreTimeout?.cancel();
     _subscription?.cancel();
     super.dispose();
   }

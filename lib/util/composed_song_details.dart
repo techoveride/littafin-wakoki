@@ -62,9 +62,10 @@ class _ComposedSongDetailsState extends State<ComposedSongDetails> {
   }
 
   shareIntent() {
-    Share.share(
-        "${widget.hymns.title}\n${widget.hymns.author}\n${widget.hymns.tune}\n${widget.hymns.lyric}",
-        subject: "${widget.hymns.title}");
+    SharePlus.instance.share(ShareParams(
+        text:
+            "${widget.hymns.title}\n${widget.hymns.author}\n${widget.hymns.tune}\n${widget.hymns.lyric}",
+        subject: "${widget.hymns.title}"));
   }
 }
 

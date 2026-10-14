@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../model/globals.dart' as globals;
@@ -102,6 +105,21 @@ class ProUpgradeDialogContent extends StatelessWidget {
                 subtitle: "Pay once, enjoy forever. Can be restored anytime on new devices.",
                 context: context,
               ),
+              // Google Play promo codes: redeemed in the Play Store, then picked up
+              // automatically when the user returns to the app.
+              if (!kIsWeb && Platform.isAndroid) ...[
+                const SizedBox(height: 8),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: () => launchUrl(
+                      Uri.parse("https://play.google.com/redeem"),
+                      mode: LaunchMode.externalApplication,
+                    ),
+                    icon: const Icon(Icons.redeem, size: 18),
+                    label: const Text("Have a promo code? Redeem it"),
+                  ),
+                ),
+              ],
               if (notifier.errorMessage != null) ...[
                 const SizedBox(height: 12),
                 Container(

@@ -1,7 +1,9 @@
 ﻿import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../state/purchase_notifier.dart';
+import 'consent_manager.dart';
 
 /// Centralized manager for AdMob App IDs and Ad Unit IDs.
 /// Uses official Google Test IDs during development (kDebugMode) to protect
@@ -26,9 +28,15 @@ class AdHelper {
   static bool get isSupportedPlatform =>
       !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
-  /// Whether ads should be displayed (disabled for Pro users and non-mobile platforms)
+  /// Whether ads should be displayed: disabled for Pro users and non-mobile
+  /// platforms, and only once the user's ad consent allows requests.
   static bool get shouldShowAds =>
-      isSupportedPlatform && !PurchaseNotifier.instance.isPro;
+      isSupportedPlatform &&
+      !PurchaseNotifier.instance.isPro &&
+      ConsentManager.instance.canRequestAds;
+
+  /// Ad request used by every ad in the app (non-personalized ads).
+  static const AdRequest adRequest = AdRequest(nonPersonalizedAds: true);
 
   /// Returns the adaptive banner ad unit ID based on platform and build mode
   static String get bannerAdUnitId {

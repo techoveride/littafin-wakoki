@@ -38,13 +38,21 @@ class DatabaseHelper {
   DatabaseHelper.internal();
 
   static Database? _db;
+  static Future<Database>? _opening;
 
+  /// Shared database connection. Concurrent callers wait for the same open
+  /// instead of each opening (and repairing) the database separately.
   Future<Database> get getDB async {
     if (_db != null && _db!.isOpen) {
       return _db!;
     }
-    _db = await initDB();
-    return _db!;
+    _opening ??= initDB();
+    try {
+      _db = await _opening!;
+      return _db!;
+    } finally {
+      _opening = null;
+    }
   }
 
   Future<Database> initDB() async {

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../state/purchase_notifier.dart';
+import 'consent_manager.dart';
 import 'ad_helper.dart';
 
 class AnchoredAdaptiveAd extends StatefulWidget {
@@ -29,15 +30,29 @@ class _AnchoredAdaptiveAdState extends State<AnchoredAdaptiveAd> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    ConsentManager.instance.addListener(_onConsentChanged);
+  }
+
+  /// Loads the banner once consent allows ad requests, or removes it if the
+  /// user withdraws consent.
+  void _onConsentChanged() {
+    if (!mounted || _availableWidth == null) return;
+    if (_isLoaded && AdHelper.shouldShowAds) return;
+    _loadAd();
+  }
+
+  @override
   void dispose() {
+    ConsentManager.instance.removeListener(_onConsentChanged);
     _anchoredAdaptiveAd?.dispose();
     super.dispose();
   }
 
   /// Load another ad, disposing of the current ad if there is one.
   Future<void> _loadAd() async {
-    final isMobile = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
-    if (!isMobile || PurchaseNotifier.instance.isPro) {
+    if (!AdHelper.shouldShowAds) {
       await _anchoredAdaptiveAd?.dispose();
       if (mounted) {
         setState(() {
@@ -68,7 +83,7 @@ class _AnchoredAdaptiveAdState extends State<AnchoredAdaptiveAd> {
     _anchoredAdaptiveAd = BannerAd(
       adUnitId: AdHelper.bannerAdUnitId,
       size: size,
-      request: const AdRequest(nonPersonalizedAds: true),
+      request: AdHelper.adRequest,
       listener: BannerAdListener(
         onAdLoaded: (Ad ad) {
           if (kDebugMode) {

@@ -114,10 +114,11 @@ class SupportUs extends StatelessWidget {
             buttonLabel: "Share App with Others",
             buttonIcon: Icons.share,
             onPressed: () {
-              Share.share(
-                "I use Littafin Waƙoƙi (+Tunes) for worship and choir singing. Download it here: https://play.google.com/store/apps/details?id=com.hymnestry.littafinwakoki",
+              SharePlus.instance.share(ShareParams(
+                text:
+                    "I use Littafin Waƙoƙi (+Tunes) for worship and choir singing. Download it here: https://play.google.com/store/apps/details?id=com.hymnestry.littafinwakoki",
                 subject: "Littafin Waƙoƙi App",
-              );
+              ));
             },
           ),
           const SizedBox(height: 24),

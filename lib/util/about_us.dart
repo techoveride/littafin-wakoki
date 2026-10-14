@@ -162,6 +162,13 @@ class AboutUs extends StatelessWidget {
                 ),
                 const Divider(height: 1, indent: 56),
                 _buildLinkTile(
+                  iconWidget: const Icon(Icons.privacy_tip_outlined, color: Colors.teal),
+                  title: "Privacy Policy",
+                  subtitle: "How we handle your information",
+                  onTap: () => _launchURL(globals.PRIVACY_POLICY_URL),
+                ),
+                const Divider(height: 1, indent: 56),
+                _buildLinkTile(
                   iconWidget: const Icon(Icons.code, color: Colors.deepPurple),
                   title: "GitHub Repository",
                   subtitle: "github.com/techoveride/sacred-songs-and-solos",

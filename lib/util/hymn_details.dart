@@ -258,10 +258,11 @@ class HymnDetailsState extends State<HymnDetails> with WidgetsBindingObserver {
   }
 
   void shareIntent() {
-    Share.share(
-      "Title: ${widget.hymns.title}\n\n${widget.hymns.lyric}\n\nShared from Littafin Waƙoƙi",
+    SharePlus.instance.share(ShareParams(
+      text:
+          "Title: ${widget.hymns.title}\n\n${widget.hymns.lyric}\n\nShared from Littafin Waƙoƙi",
       subject: widget.hymns.title,
-    );
+    ));
   }
 
   String lyricOptimiser(String lyric) {

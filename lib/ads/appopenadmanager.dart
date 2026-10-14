@@ -25,7 +25,7 @@ class AppOpenAdManager {
 
     AppOpenAd.load(
       adUnitId: AdHelper.appOpenAdUnitId,
-      request: const AdRequest(),
+      request: AdHelper.adRequest,
       adLoadCallback: AppOpenAdLoadCallback(
         onAdLoaded: (ad) {
           if (kDebugMode) {
