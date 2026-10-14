@@ -47,7 +47,7 @@ String PREMIUM_APP_STORE_URL =
 String PREMIUM_PLAY_STORE_URL =
     'https://play.google.com/store/apps/details?id=com.hymnestry.littafinwakoki_pro';
 String PRIVACY_POLICY_URL =
-    'https://hymnestry.techoveridehub.com/privacy-policy/';
+    'https://hymnestry.techoveridehub.com/littafin-wakoki/privacy-policy/';
 String TERMS_OF_USE_URL =
     'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 
