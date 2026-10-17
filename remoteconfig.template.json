@@ -16,7 +16,7 @@
     },
     "app_version": {
       "defaultValue": {
-        "value": "1.0.9"
+        "value": "1.0.11"
       },
       "description": "Latest release version of Littafin Wakoki app for update prompts",
       "valueType": "STRING"

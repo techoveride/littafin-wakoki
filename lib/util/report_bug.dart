@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:littafin_wakoki/model/globals.dart' as globals;
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -15,6 +16,13 @@ class _ReportBugState extends State<ReportBug> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+
+  /// Screenshot/photo attachments: at most [_maxAttachments] images of up to
+  /// [_maxAttachmentBytes] each, after resizing and compression.
+  static const int _maxAttachments = 3;
+  static const int _maxAttachmentBytes = 5 * 1024 * 1024;
+  final ImagePicker _imagePicker = ImagePicker();
+  final List<XFile> _attachments = [];
 
   String _selectedCategory = "Bug / Crash";
   bool _isSending = false;
@@ -180,6 +188,10 @@ class _ReportBugState extends State<ReportBug> {
             ),
             const SizedBox(height: 16),
 
+            // Screenshot / photo attachments
+            _buildAttachments(theme),
+            const SizedBox(height: 16),
+
             // Auto-diagnostics Note
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
@@ -231,6 +243,122 @@ class _ReportBugState extends State<ReportBug> {
     );
   }
 
+  Widget _buildAttachments(ThemeData theme) {
+    final canAddMore = _attachments.length < _maxAttachments;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_attachments.isNotEmpty) ...[
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final file in _attachments)
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.file(
+                        File(file.path),
+                        width: 84,
+                        height: 84,
+                        fit: BoxFit.cover,
+                        cacheWidth: 252,
+                      ),
+                    ),
+                    Positioned(
+                      top: -8,
+                      right: -8,
+                      child: Material(
+                        color: theme.colorScheme.error,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: _isSending
+                              ? null
+                              : () => setState(() => _attachments.remove(file)),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(Icons.close,
+                                size: 14, color: theme.colorScheme.onError),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+        ],
+        OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(46),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          onPressed: canAddMore && !_isSending ? _pickAttachments : null,
+          icon: const Icon(Icons.add_photo_alternate_outlined),
+          label: Text(
+            "Add screenshot or photo (${_attachments.length}/$_maxAttachments)",
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          "Optional. Up to $_maxAttachments images, ${_maxAttachmentBytes ~/ (1024 * 1024)} MB each.",
+          style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
+        ),
+      ],
+    );
+  }
+
+  /// Picks screenshots/photos from the gallery, downscaled and compressed so
+  /// they stay small enough to email, and rejects any still over the limit.
+  Future<void> _pickAttachments() async {
+    final remaining = _maxAttachments - _attachments.length;
+    if (remaining <= 0) return;
+
+    List<XFile> picked;
+    try {
+      picked = await _imagePicker.pickMultiImage(
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 80,
+        limit: remaining,
+      );
+    } catch (e) {
+      debugPrint("Image picker error: $e");
+      _showMessage("Couldn't open your photos. Please try again.");
+      return;
+    }
+    if (picked.isEmpty || !mounted) return;
+
+    final accepted = <XFile>[];
+    var tooLarge = 0;
+    for (final file in picked.take(remaining)) {
+      if (await file.length() <= _maxAttachmentBytes) {
+        accepted.add(file);
+      } else {
+        tooLarge++;
+      }
+    }
+    if (!mounted) return;
+
+    setState(() => _attachments.addAll(accepted));
+    if (tooLarge > 0) {
+      _showMessage(tooLarge == 1
+          ? "1 image was larger than ${_maxAttachmentBytes ~/ (1024 * 1024)} MB and wasn't added."
+          : "$tooLarge images were larger than ${_maxAttachmentBytes ~/ (1024 * 1024)} MB and weren't added.");
+    } else if (picked.length > remaining) {
+      _showMessage("Only $_maxAttachments images can be attached.");
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _submitReport() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -259,6 +387,7 @@ App Version: $appVer
 Night Mode: ${globals.nightMode}
 Active Theme: ${globals.currentThemeKey}
 Timestamp: ${DateTime.now().toIso8601String()}
+Attachments: ${_attachments.length} image(s)
 ----------------------------------------
 """;
 
@@ -266,6 +395,7 @@ Timestamp: ${DateTime.now().toIso8601String()}
       body: emailBody,
       subject: '[$_selectedCategory] $title',
       recipients: ['techoveridehub@gmail.com'],
+      attachmentPaths: _attachments.map((file) => file.path).toList(),
       isHTML: false,
     );
 

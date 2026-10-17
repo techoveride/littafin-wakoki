@@ -3,7 +3,7 @@ description: A Christian Hymn Book in Hausa
 
 publish_to: 'none'
 
-version: 1.0.9+11
+version: 1.0.11+13
 
 environment:
   sdk: ">=2.17.6 <4.0.0"
@@ -32,6 +32,8 @@ dependencies:
   wakelock_plus: ^1.8.0
   in_app_purchase: ^3.3.1
   path: ^1.9.0
+  image_picker: ^1.2.4
+  package_info_plus: ^10.2.2
 
 dev_dependencies:
   flutter_test:
@@ -48,9 +50,11 @@ flutter_icons:
   adaptive_icon_background: "#ffffff"
 
 flutter_native_splash:
-  # Full-screen artwork for Android 11 and below, iOS, and web.
+  # Android 11 and below, iOS, and web: centered logo on a solid color.
+  # (color and background_image can't be combined; a full-screen image would
+  # also be stretched on tall phones.)
   color: "#0FC40F"
-  background_image: images/splash.png
+  image: images/splash_logo.png
 
   # Android 12+ only allows a centered icon on a solid color.
   android_12:

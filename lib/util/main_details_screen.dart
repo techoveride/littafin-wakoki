@@ -103,19 +103,25 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
     _interstitialAd!.show();
     _interstitialAd = null;
   }*/
-  AppUpdateInfo? _updateInfo;
-
-  bool _flexibleUpdateAvailable = false;
-
-  // Platform messages are asynchronous, so we initialize in an async method.
+  /// Checks Google Play for a newer version and, if one is available,
+  /// downloads it in the background and installs it once downloaded.
   Future<void> checkForUpdate() async {
-    InAppUpdate.checkForUpdate().then((info) {
-      setState(() {
-        _updateInfo = info;
-      });
-    }).catchError((e) {
-      showSnack(e.toString());
-    });
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      final info = await InAppUpdate.checkForUpdate();
+      if (info.updateAvailability != UpdateAvailability.updateAvailable ||
+          !info.flexibleUpdateAllowed) {
+        return;
+      }
+      final result = await InAppUpdate.startFlexibleUpdate();
+      if (result == AppUpdateResult.success) {
+        await InAppUpdate.completeFlexibleUpdate();
+      }
+    } catch (e) {
+      // Expected when the app wasn't installed from Google Play, when
+      // offline, or when Play declines the update. Not worth showing users.
+      debugPrint("In-app update skipped: $e");
+    }
   }
 
   void showSnack(String text) {
@@ -133,25 +139,6 @@ class _MasterDetailsScreenState extends State<MasterDetailsScreen>
     super.initState();
 
     checkForUpdate();
-    Future.delayed(const Duration(seconds: 1)).then((value) {
-      if (_updateInfo?.updateAvailability ==
-          UpdateAvailability.updateAvailable) {
-        InAppUpdate.startFlexibleUpdate().then((_) {
-          setState(() {
-            _flexibleUpdateAvailable = true;
-          });
-        }).catchError((e) {
-          showSnack(e.toString());
-        });
-        if (_flexibleUpdateAvailable) {
-          InAppUpdate.completeFlexibleUpdate().then((_) {
-            showSnack("Success!");
-          }).catchError((e) {
-            showSnack(e.toString());
-          });
-        }
-      }
-    });
 
     //ads Setup
 

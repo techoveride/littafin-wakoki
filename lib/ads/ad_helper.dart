@@ -24,6 +24,11 @@ class AdHelper {
   static const String _testAndroidAppOpenId = 'ca-app-pub-3940256099942544/9257395921';
   static const String _testIosAppOpenId = 'ca-app-pub-3940256099942544/5575463023';
 
+  /// Builds made for Play Store screenshots hide all ads:
+  /// `flutter build apk --dart-define=STORE_SCREENSHOTS=true`. Off by default.
+  static const bool _isStoreScreenshotBuild =
+      bool.fromEnvironment('STORE_SCREENSHOTS');
+
   /// Whether current platform supports Google Mobile Ads (Android & iOS only)
   static bool get isSupportedPlatform =>
       !kIsWeb && (Platform.isAndroid || Platform.isIOS);
@@ -31,6 +36,7 @@ class AdHelper {
   /// Whether ads should be displayed: disabled for Pro users and non-mobile
   /// platforms, and only once the user's ad consent allows requests.
   static bool get shouldShowAds =>
+      !_isStoreScreenshotBuild &&
       isSupportedPlatform &&
       !PurchaseNotifier.instance.isPro &&
       ConsentManager.instance.canRequestAds;

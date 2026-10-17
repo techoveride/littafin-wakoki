@@ -44,3 +44,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Raw emulator captures for store screenshots (regenerate with design/store/tools)
+design/store/screenshots/raw/
